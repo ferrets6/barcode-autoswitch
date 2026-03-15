@@ -1,3 +1,4 @@
+using BarcodeAutoSwitch.Infrastructure;
 using BarcodeAutoSwitch.UI.ViewModels;
 using System.Windows;
 
@@ -17,6 +18,11 @@ public partial class MainWindow : Window
         viewModel.BarcodeForAdriaticaPress += OnBarcodeForAdriaticaPress;
         viewModel.RequestChangeCOMPort      += OnRequestChangeCOMPort;
         viewModel.PropertyChanged           += OnViewModelPropertyChanged;
+
+        // Detect HTTP 5xx from the Adriatica Press server
+        var requestHandler = new HttpErrorRequestHandler();
+        requestHandler.ServerError += OnAdriaticaPressServerError;
+        Browser.RequestHandler = requestHandler;
 
         // Set initial browser address once the browser is loaded
         Browser.IsBrowserInitializedChanged += OnBrowserInitialized;
@@ -68,6 +74,17 @@ public partial class MainWindow : Window
     {
         var dialog = new ComPortWindow(_viewModel);
         dialog.ShowDialog();
+    }
+
+    private void OnAdriaticaPressServerError(int statusCode)
+    {
+        Console.WriteLine($"[HTTP] Adriatica Press ha risposto con HTTP {statusCode}");
+        Dispatcher.BeginInvoke(() =>
+            System.Windows.MessageBox.Show(
+                $"Adriatica Press ha risposto con un errore (HTTP {statusCode}).\n\nIl problema non riguarda questa applicazione.",
+                "Errore Adriatica Press",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning));
     }
 
     protected override void OnClosed(EventArgs e)

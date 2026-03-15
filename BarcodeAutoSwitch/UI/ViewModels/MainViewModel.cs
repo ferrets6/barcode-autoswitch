@@ -131,12 +131,13 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
                         BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty));
                     // SendKeys are called here, on the BACKGROUND serial thread,
                     // exactly as the original .NET 4.5 code did (see old MainWindow.xaml.cs)
-                    Console.WriteLine($"[KEYBOARD] Invio Alt+T al browser (foreground: in attesa)");
+                    Console.WriteLine($"[KEYBOARD] Invio Alt+T al browser");
                     _keyboard.SendAlt('T');
-                    Thread.Sleep(200); // tempo ad Adriatica Press per aprire il campo di testo
+                    Thread.Sleep(100); // attesa minima per apertura campo di testo
                     Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}'");
                     _keyboard.SendText(reading.CodeValue);
                     _keyboard.SendKey("{ENTER}");
+                    Thread.Sleep(100); // attesa risposta del sito (non blocca la UI)
                     Console.WriteLine("[KEYBOARD] Invio completato.");
                     return;
 
