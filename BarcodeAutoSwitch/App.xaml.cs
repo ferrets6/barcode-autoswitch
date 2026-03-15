@@ -1,30 +1,70 @@
-﻿using CefSharp.Wpf;
-using System;
+using BarcodeAutoSwitch.Core.Interfaces;
+using BarcodeAutoSwitch.Core.Services;
+using BarcodeAutoSwitch.Infrastructure;
+using BarcodeAutoSwitch.UI.ViewModels;
+using BarcodeAutoSwitch.Windows;
+using CefSharp;
+using CefSharp.Wpf;
+using Microsoft.Extensions.Configuration;
 using System.IO;
-using System.Windows;
+using WpfApp = System.Windows.Application;
+using WpfStartupEventArgs = System.Windows.StartupEventArgs;
 
-namespace CefSharp.MinimalExample.Wpf
+namespace BarcodeAutoSwitch;
+
+public partial class App : WpfApp
 {
-    public partial class App : Application
+    // Exposed so MainWindow code-behind can read them without a DI container
+    public static string AdriaticaPressVenditaUrl = string.Empty;
+    public static string AdriaticaPressLoginUrl   = string.Empty;
+
+    protected override void OnStartup(WpfStartupEventArgs e)
     {
-        public App()
+        base.OnStartup(e);
+
+        InitialiseCef();
+
+        // ── Build configuration ───────────────────────────────────────────────
+        var config = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .Build();
+
+        // ── Compose object graph (manual DI) ─────────────────────────────────
+        var appSettings     = new AppSettings(config);
+        var serialPort      = new SerialPortService();
+        var windowSwitcher  = new WindowSwitcher();
+        var keyboardSender  = new KeyboardSender();
+        var barcodeParser   = new BarcodeParser();
+        var barcodeRouter   = new BarcodeRouter(new IRoutingStrategy[]
         {
-            //Monitor parent process exit and close subprocesses if parent process exits first
-            //This will at some point in the future becomes the default
-            CefSharpSettings.SubprocessExitIfParentProcessClosed = true;
+            new NewspaperRoutingStrategy(),
+            new DefaultRoutingStrategy()
+        });
 
-            var settings = new CefSettings()
-            {
-                //By default CefSharp will use an in-memory cache, you need to specify a Cache Folder to persist data
-                CachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CefSharp\\Cache")
-            };
-            
-            //Example of setting a command line argument
-            //Enables WebRTC
-            settings.CefCommandLineArgs.Add("enable-media-stream", "1");
+        AdriaticaPressVenditaUrl = appSettings.AdriaticaPressVenditaUrl;
+        AdriaticaPressLoginUrl   = appSettings.AdriaticaPressLoginUrl;
 
-            //Perform dependency check to make sure all relevant resources are in our output directory.
-            Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null);
-        }
+        var viewModel  = new MainViewModel(serialPort, barcodeParser, barcodeRouter,
+                                           windowSwitcher, keyboardSender, appSettings);
+        var mainWindow = new MainWindow(viewModel);
+        mainWindow.Show();
+    }
+
+    private static void InitialiseCef()
+    {
+        CefSharpSettings.SubprocessExitIfParentProcessClosed = true;
+
+        var settings = new CefSettings
+        {
+            CachePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "BarcodeAutoSwitch", "CefCache")
+        };
+        settings.CefCommandLineArgs.Add("enable-media-stream", "1");
+        // Needed on some older hardware
+        settings.CefCommandLineArgs.Add("disable-gpu", "1");
+
+        Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null);
     }
 }
