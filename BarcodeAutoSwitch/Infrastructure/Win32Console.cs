@@ -8,6 +8,9 @@ internal static class Win32Console
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetConsoleWindow();
 
+    [DllImport("kernel32.dll")]
+    private static extern bool AllocConsole();
+
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
@@ -27,7 +30,20 @@ internal static class Win32Console
     public static void ShowHide()
     {
         IntPtr hWnd = GetConsoleWindow();
-        if (hWnd == IntPtr.Zero) return;
+
+        // WinExe has no console by default — allocate one on first call
+        if (hWnd == IntPtr.Zero)
+        {
+            AllocConsole();
+            // Redirect stdout/stderr to the new console
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            var writer = new System.IO.StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+            Console.SetOut(writer);
+            Console.SetError(writer);
+            hWnd = GetConsoleWindow();
+            if (hWnd == IntPtr.Zero) return;
+            _isVisible = true; // newly created console is visible
+        }
 
         // Disable the close button so the user can't accidentally kill the app
         IntPtr hMenu = GetSystemMenu(hWnd, false);

@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using WpfApplication = System.Windows.Application;
+using Thread = System.Threading.Thread;
 
 namespace BarcodeAutoSwitch.UI.ViewModels;
 
@@ -22,8 +23,9 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly IKeyboardSender    _keyboard;
     private readonly IAppSettings       _settings;
 
-    private bool _isAutoSwitchEnabled = true;
-    private bool _isBrowserVisible    = true;
+    private bool   _isAutoSwitchEnabled       = true;
+    private bool   _isBrowserVisible          = true;
+    private string _pendingAdriaticaPressCode = string.Empty;
 
     // ── Public events for things the View must do ─────────────────────────────
     /// <summary>Raised when a newspaper barcode arrives and the browser must receive Alt+T.</summary>
@@ -118,13 +120,11 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
             switch (destination)
             {
                 case BarcodeDestination.AdriaticaPress:
+                    _pendingAdriaticaPressCode = reading.CodeValue;
                     _windowSwitcher.BringToFront("BarcodeAutoSwitch");
                     WpfApplication.Current.Dispatcher.Invoke(() =>
-                    {
-                        BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty);
-                        sendToKeyboard = true;
-                    });
-                    return; // keyboard send handled inside Dispatcher.Invoke after Alt+T
+                        BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty));
+                    return; // keyboard send is done inside SendAdriaticaPressKey()
 
                 case BarcodeDestination.NegozioFacile:
                     sendToKeyboard = _windowSwitcher.BringToFront(_settings.NegozioFacileProcessName);
@@ -176,12 +176,24 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     public string GetCurrentPort() => _settings.SelectedSerialPort;
 
     /// <summary>
-    /// Called by the View once it has focused the browser, so the keyboard
-    /// send happens after focus is confirmed on the UI thread.
+    /// Called by the View once it has focused the browser.
+    /// Sends Alt+T to trigger the input field in Adriatica Press, then sends
+    /// the pending barcode code and Enter.
     /// </summary>
     public void SendAdriaticaPressKey()
     {
         _keyboard.SendAlt('T');
+
+        var code = _pendingAdriaticaPressCode;
+        _pendingAdriaticaPressCode = string.Empty;
+
+        if (!string.IsNullOrEmpty(code))
+        {
+            // Small delay so Adriatica Press has time to open its input field
+            Thread.Sleep(150);
+            _keyboard.SendText(code);
+            _keyboard.SendKey("{ENTER}");
+        }
     }
 
     // ── INotifyPropertyChanged ────────────────────────────────────────────────
