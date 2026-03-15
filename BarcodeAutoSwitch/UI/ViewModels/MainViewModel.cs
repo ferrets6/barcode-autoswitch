@@ -98,8 +98,11 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     // ── Barcode pipeline ──────────────────────────────────────────────────────
     private void HandleDataReceived(object? sender, string rawData)
     {
+        Console.WriteLine($"[SERIALE] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
+
         if (_parser.IsControlCode(rawData, out var controlType))
         {
+            Console.WriteLine($"[SERIALE] Codice di controllo: {controlType}");
             if (controlType == ControlCodeType.EnableDisableToggle)
                 WpfApplication.Current.Dispatcher.Invoke(ToggleAutoSwitch);
         }
@@ -111,20 +114,32 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void ProcessBarcode(string rawData)
     {
-        var reading         = _parser.Parse(rawData);
+        var reading = _parser.Parse(rawData);
+        Console.WriteLine($"[BARCODE] Tipo={reading.BarcodeType} | ID='{reading.CodeIdentifier}' | Codice='{reading.CodeValue}'");
+
         bool sendToKeyboard = false;
 
         if (IsAutoSwitchEnabled)
         {
             var destination = _router.Route(reading);
+            Console.WriteLine($"[ROUTING] Destinazione: {destination}");
             switch (destination)
             {
                 case BarcodeDestination.AdriaticaPress:
-                    _pendingAdriaticaPressCode = reading.CodeValue;
                     _windowSwitcher.BringToFront("BarcodeAutoSwitch");
+                    // Focus the browser on the UI thread; this call BLOCKS until done
                     WpfApplication.Current.Dispatcher.Invoke(() =>
                         BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty));
-                    return; // keyboard send is done inside SendAdriaticaPressKey()
+                    // SendKeys are called here, on the BACKGROUND serial thread,
+                    // exactly as the original .NET 4.5 code did (see old MainWindow.xaml.cs)
+                    Console.WriteLine($"[KEYBOARD] Invio Alt+T al browser (foreground: in attesa)");
+                    _keyboard.SendAlt('T');
+                    Thread.Sleep(200); // tempo ad Adriatica Press per aprire il campo di testo
+                    Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}'");
+                    _keyboard.SendText(reading.CodeValue);
+                    _keyboard.SendKey("{ENTER}");
+                    Console.WriteLine("[KEYBOARD] Invio completato.");
+                    return;
 
                 case BarcodeDestination.NegozioFacile:
                     sendToKeyboard = _windowSwitcher.BringToFront(_settings.NegozioFacileProcessName);
@@ -138,6 +153,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (sendToKeyboard)
         {
+            Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}' a NegozioFacile");
             _keyboard.SendText(reading.CodeValue);
             _keyboard.SendKey("{ENTER}");
         }

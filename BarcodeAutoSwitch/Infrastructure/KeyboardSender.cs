@@ -1,4 +1,5 @@
 using BarcodeAutoSwitch.Core.Interfaces;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace BarcodeAutoSwitch.Infrastructure;
@@ -12,14 +13,24 @@ public class KeyboardSender : IKeyboardSender
 {
     public void SendText(string text)
     {
-        // Escape special SendKeys characters
         string escaped = EscapeForSendKeys(text);
+        Console.WriteLine($"[KEYS] SendText raw='{text}' → escaped='{escaped}' | Thread={Environment.CurrentManagedThreadId} IsUI={Thread.CurrentThread.GetApartmentState() == ApartmentState.STA}");
         SendKeys.SendWait(escaped);
+        Console.WriteLine($"[KEYS] SendText completato");
     }
 
-    public void SendKey(string key) => SendKeys.SendWait(key);
+    public void SendKey(string key)
+    {
+        Console.WriteLine($"[KEYS] SendKey '{key}'");
+        SendKeys.SendWait(key);
+    }
 
-    public void SendAlt(char key) => SendKeys.SendWait($"%{key}");
+    public void SendAlt(char key)
+    {
+        Console.WriteLine($"[KEYS] SendAlt '%{key}' | Thread={Environment.CurrentManagedThreadId} IsUI={Thread.CurrentThread.GetApartmentState() == ApartmentState.STA}");
+        SendKeys.SendWait($"%{key}");
+        Console.WriteLine($"[KEYS] SendAlt completato");
+    }
 
     /// <summary>
     /// Escapes characters that have special meaning in SendKeys syntax

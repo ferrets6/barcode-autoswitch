@@ -58,10 +58,10 @@ public partial class MainWindow : Window
 
     private void OnBarcodeForAdriaticaPress(object? sender, EventArgs e)
     {
-        // Focus the browser so the Alt+T keystroke lands in it
+        // Focus the browser — SendKeys are sent by the background (serial) thread
+        // AFTER this Dispatcher.Invoke returns, matching the original .NET 4.5 pattern
         this.Focus();
         Browser.Focus();
-        _viewModel.SendAdriaticaPressKey();
     }
 
     private void OnRequestChangeCOMPort(object? sender, EventArgs e)
