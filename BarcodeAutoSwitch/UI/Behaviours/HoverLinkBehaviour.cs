@@ -22,7 +22,7 @@ public class HoverLinkBehaviour : Behavior<ChromiumWebBrowser>
     protected override void OnDetaching() =>
         AssociatedObject.StatusMessage -= OnStatusMessageChanged;
 
-    private void OnStatusMessageChanged(object sender, CefSharp.StatusMessageEventArgs e)
+    private void OnStatusMessageChanged(object? sender, CefSharp.StatusMessageEventArgs e)
     {
         if (sender is ChromiumWebBrowser browser)
             browser.Dispatcher.BeginInvoke(() => HoverLink = e.Value);

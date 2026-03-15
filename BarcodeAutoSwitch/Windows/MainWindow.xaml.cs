@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnLoadingStateChanged(object sender, CefSharp.LoadingStateChangedEventArgs args)
+    private void OnLoadingStateChanged(object? sender, CefSharp.LoadingStateChangedEventArgs args)
     {
         if (args.IsLoading) return;
 
