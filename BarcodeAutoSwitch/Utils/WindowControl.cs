@@ -13,7 +13,6 @@ namespace BarcodeAutoSwitch.Utils
     class WindowControl
     {
         private static string _NegozioFacileProcessName = ConfigurationManager.AppSettings["NegozioFacileProcessName"];
-        //private static string _NegozioFacileProcessName = "notepad++";
         private static string _AdriaticaPressProcessName = "BarcodeAutoSwitch";
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]

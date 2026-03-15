@@ -27,7 +27,8 @@ public partial class App : WpfApp
         // ── Build configuration ───────────────────────────────────────────────
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.json",       optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.local.json",  optional: true,  reloadOnChange: false)
             .Build();
 
         // ── Compose object graph (manual DI) ─────────────────────────────────

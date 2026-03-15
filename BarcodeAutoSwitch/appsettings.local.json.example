@@ -1,0 +1,6 @@
+{
+  "Application": {
+    "NegozioFacileProcessName": "notepad",
+    "DefaultSerialPort": "COM3"
+  }
+}

@@ -23,9 +23,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly IKeyboardSender    _keyboard;
     private readonly IAppSettings       _settings;
 
-    private bool   _isAutoSwitchEnabled       = true;
-    private bool   _isBrowserVisible          = true;
-    private string _pendingAdriaticaPressCode = string.Empty;
+    private bool _isAutoSwitchEnabled = true;
+    private bool _isBrowserVisible   = true;
 
     // ── Public events for things the View must do ─────────────────────────────
     /// <summary>Raised when a newspaper barcode arrives and the browser must receive Alt+T.</summary>
@@ -187,30 +186,9 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         IsBrowserVisible = opened;
     }
 
-    // ── Adriatica Press barcode send ──────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
     /// <summary>Returns the currently configured serial port name.</summary>
     public string GetCurrentPort() => _settings.SelectedSerialPort;
-
-    /// <summary>
-    /// Called by the View once it has focused the browser.
-    /// Sends Alt+T to trigger the input field in Adriatica Press, then sends
-    /// the pending barcode code and Enter.
-    /// </summary>
-    public void SendAdriaticaPressKey()
-    {
-        _keyboard.SendAlt('T');
-
-        var code = _pendingAdriaticaPressCode;
-        _pendingAdriaticaPressCode = string.Empty;
-
-        if (!string.IsNullOrEmpty(code))
-        {
-            // Small delay so Adriatica Press has time to open its input field
-            Thread.Sleep(150);
-            _keyboard.SendText(code);
-            _keyboard.SendKey("{ENTER}");
-        }
-    }
 
     // ── INotifyPropertyChanged ────────────────────────────────────────────────
     public event PropertyChangedEventHandler? PropertyChanged;
