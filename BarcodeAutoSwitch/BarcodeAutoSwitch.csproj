@@ -18,10 +18,10 @@
     <!-- CefSharp requires explicit x64 or x86 — not AnyCPU -->
     <Platforms>x64;x86</Platforms>
     <PlatformTarget>x64</PlatformTarget>
+    <!-- DPI awareness set here; avoids WFAC010 warning from app.manifest -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <!-- Needed on older hardware / drivers -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Treat old files as excluded until we delete them -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Utils\**;Converter\**;Behaviours\**;MainWindow.xaml;MainWindow.xaml.cs;ComPortWindow.xaml;ComPortWindow.xaml.cs;Properties\**;packages.config;App.config</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

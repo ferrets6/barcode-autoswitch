@@ -17,7 +17,7 @@ public class AppSettings : IAppSettings
     public AppSettings(IConfiguration config)
     {
         _config = config;
-        _selectedSerialPort = config["Application:DefaultSerialPort"] ?? "COM6";
+        _selectedSerialPort = config["Application:DefaultSerialPort"] ?? "COM1";
         LoadUserSettings();
     }
 
