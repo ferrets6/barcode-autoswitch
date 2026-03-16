@@ -32,7 +32,6 @@ public class AppSettings : IAppSettings
     public string AdriaticaPressLoginUrl      => _config["AdriaticaPress:LoginUrl"]      ?? string.Empty;
     public string AdriaticaPressAfterLoginUrl => _config["AdriaticaPress:AfterLoginUrl"] ?? string.Empty;
     public string NegozioFacileProcessName    => _config["Application:NegozioFacileProcessName"] ?? "NegozioFacile";
-    public bool   TrimTrailingZeros           => bool.TryParse(_config["Application:TrimTrailingZeros"], out var v) && v;
 
     public List<SavedDevice> ConfiguredDevices
     {

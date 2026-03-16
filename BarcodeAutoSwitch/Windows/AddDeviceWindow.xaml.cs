@@ -40,11 +40,12 @@ public partial class AddDeviceWindow : Window
             if (sel == null) return null;
             return new SavedDevice
             {
-                DeviceId    = sel.DeviceId,
-                Type        = sel.Type,
-                HardwareId  = sel.HardwareId,
-                DisplayName = sel.DisplayName,
-                IsAvailable = true
+                DeviceId           = sel.DeviceId,
+                Type               = sel.Type,
+                HardwareId         = sel.HardwareId,
+                DisplayName        = sel.DisplayName,
+                TrimTrailingZeros  = _viewModel.TrimTrailingZeros,
+                IsAvailable        = true
             };
         }
     }

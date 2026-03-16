@@ -38,6 +38,13 @@ public class SavedDevice
     public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>
+    /// When true, trailing zeros are stripped from the raw barcode before
+    /// checking whether it matches the CheckPort activation code.
+    /// Only affects activation-code recognition — normal barcode parsing is unchanged.
+    /// </summary>
+    public bool TrimTrailingZeros { get; set; } = false;
+
+    /// <summary>
     /// Set at runtime by the startup probe; not persisted to JSON.
     /// True = device was found and opened successfully at last startup.
     /// </summary>

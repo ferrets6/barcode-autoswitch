@@ -73,13 +73,20 @@ Example:
       "DeviceId": "COM3",
       "Type": "SerialPort",
       "HardwareId": "USB\\VID_067B&PID_2303",
-      "DisplayName": "COM3  (USB\\VID_067B&PID_2303)"
+      "DisplayName": "COM3  (USB\\VID_067B&PID_2303)",
+      "TrimTrailingZeros": false
     }
   ]
 }
 ```
 
-For USB-to-serial adapters the `HardwareId` (VID/PID) is stored so the app re-finds the correct COM port even if its number changes between reboots.
+Per-device fields:
+
+| Field | Description |
+|---|---|
+| `HardwareId` | VID/PID for USB-to-serial adapters — the app re-finds the correct COM port automatically even if its number changes between reboots |
+| `TrimTrailingZeros` | `true` if this scanner appends trailing zeros to its output (e.g. POS HID scanners). Only affects activation-code recognition — regular barcodes are unaffected. Can also be set via the checkbox in the "Aggiungi dispositivo" dialog. |
+
 You can add entries manually for testing; the file is gitignored.
 
 ## Tests

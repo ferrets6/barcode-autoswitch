@@ -36,9 +36,10 @@
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <!-- Local overrides: copied only if the file exists; never committed -->
+    <!-- Local overrides: copied to output only if the file exists; never published, never committed -->
     <Content Include="appsettings.local.json" Condition="Exists('appsettings.local.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
     <Content Include="appsettings.local.json.example">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>

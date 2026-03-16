@@ -21,6 +21,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
     private BarcodeDeviceInfo?    _selectedDevice;
     private PortTestResult        _testResult = PortTestResult.Idle;
     private bool                  _suppressSelectionChanged;
+    private bool                  _trimTrailingZeros;
 
     public ObservableCollection<BarcodeDeviceInfo> AvailableDevices { get; } = new();
 
@@ -33,6 +34,17 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
             _selectedDevice = value;
             OnPropertyChanged();
             OpenSelectedDevice();
+        }
+    }
+
+    public bool TrimTrailingZeros
+    {
+        get => _trimTrailingZeros;
+        set
+        {
+            if (_trimTrailingZeros == value) return;
+            _trimTrailingZeros = value;
+            OnPropertyChanged();
         }
     }
 
@@ -99,7 +111,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnDataReceived(object? sender, string rawData)
     {
-        if (!_parser.IsControlCode(rawData, out var controlType)) return;
+        if (!_parser.IsControlCode(rawData, out var controlType, _trimTrailingZeros)) return;
 
         WpfApplication.Current.Dispatcher.Invoke(() =>
         {

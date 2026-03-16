@@ -26,7 +26,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly Func<BarcodeDeviceType, IBarcodeInputService> _serviceFactory;
 
     // All currently-open input services (one per active configured device)
-    private readonly List<IBarcodeInputService> _activeServices = new();
+    private record ActiveDevice(IBarcodeInputService Service, EventHandler<string> DataHandler, EventHandler<string> ErrorHandler);
+    private readonly List<ActiveDevice> _activeServices = new();
 
     private bool _isAutoSwitchEnabled = true;
     private bool _isBrowserVisible    = true;
@@ -106,15 +107,19 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             string resolvedId = ResolveDeviceId(device);
             var service = _serviceFactory(device.Type);
-            bool opened = service.Open(resolvedId);
 
+            bool trim        = device.TrimTrailingZeros;
+            var dataHandler  = (EventHandler<string>)((_, data) => HandleDataReceived(data, trim));
+            var errorHandler = (EventHandler<string>)HandleErrorReceived;
+
+            bool opened = service.Open(resolvedId);
             device.IsAvailable = opened;
 
             if (opened)
             {
-                service.DataReceived  += HandleDataReceived;
-                service.ErrorReceived += HandleErrorReceived;
-                _activeServices.Add(service);
+                service.DataReceived  += dataHandler;
+                service.ErrorReceived += errorHandler;
+                _activeServices.Add(new ActiveDevice(service, dataHandler, errorHandler));
                 anyOpened = true;
             }
             else
@@ -130,12 +135,12 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void DisposeActiveServices()
     {
-        foreach (var svc in _activeServices)
+        foreach (var h in _activeServices)
         {
-            svc.DataReceived  -= HandleDataReceived;
-            svc.ErrorReceived -= HandleErrorReceived;
-            svc.Close();
-            svc.Dispose();
+            h.Service.DataReceived  -= h.DataHandler;
+            h.Service.ErrorReceived -= h.ErrorHandler;
+            h.Service.Close();
+            h.Service.Dispose();
         }
         _activeServices.Clear();
     }
@@ -172,11 +177,11 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     // ── Barcode pipeline ──────────────────────────────────────────────────────
 
-    private void HandleDataReceived(object? sender, string rawData)
+    private void HandleDataReceived(string rawData, bool trimTrailingZeros)
     {
         Console.WriteLine($"[INPUT] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
 
-        if (_parser.IsControlCode(rawData, out var controlType))
+        if (_parser.IsControlCode(rawData, out var controlType, trimTrailingZeros))
         {
             Console.WriteLine($"[INPUT] Codice di controllo: {controlType}");
             if (controlType == ControlCodeType.EnableDisableToggle)

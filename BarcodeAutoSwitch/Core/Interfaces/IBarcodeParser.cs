@@ -5,5 +5,5 @@ namespace BarcodeAutoSwitch.Core.Interfaces;
 public interface IBarcodeParser
 {
     BarcodeReading Parse(string rawInput);
-    bool IsControlCode(string rawInput, out ControlCodeType controlType);
+    bool IsControlCode(string rawInput, out ControlCodeType controlType, bool trimTrailingZeros = false);
 }

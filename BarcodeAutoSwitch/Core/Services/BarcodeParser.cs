@@ -13,13 +13,6 @@ public class BarcodeParser : IBarcodeParser
     private const string EnableDisableToggleCode = "111111111100000011111111";
     private const string CheckPortCode           = "111111111122222200000000";
 
-    private readonly bool _trimTrailingZeros;
-
-    public BarcodeParser(bool trimTrailingZeros = false)
-    {
-        _trimTrailingZeros = trimTrailingZeros;
-    }
-
     public BarcodeReading Parse(string rawInput)
     {
         if (string.IsNullOrEmpty(rawInput) || rawInput.Length < 2)
@@ -40,7 +33,7 @@ public class BarcodeParser : IBarcodeParser
         return new BarcodeReading(rawInput, code, identifier, type);
     }
 
-    public bool IsControlCode(string rawInput, out ControlCodeType controlType)
+    public bool IsControlCode(string rawInput, out ControlCodeType controlType, bool trimTrailingZeros = false)
     {
         if (rawInput.Length < 1)
         {
@@ -61,7 +54,7 @@ public class BarcodeParser : IBarcodeParser
                 return true;
             }
 
-            string norm = _trimTrailingZeros ? candidate.TrimEnd('0') : candidate;
+            string norm = trimTrailingZeros ? candidate.TrimEnd('0') : candidate;
             if (norm == CheckPortCode.TrimEnd('0'))
             {
                 controlType = ControlCodeType.CheckPort;
