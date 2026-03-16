@@ -1,43 +1,55 @@
+using BarcodeAutoSwitch.Core.Interfaces;
+using BarcodeAutoSwitch.Core.Models;
 using BarcodeAutoSwitch.Core.Services;
 using BarcodeAutoSwitch.UI.ViewModels;
 using FluentAssertions;
 using Moq;
-using BarcodeAutoSwitch.Core.Interfaces;
 
 namespace BarcodeAutoSwitch.UnitTests.UI.ViewModels;
 
-public class ComPortViewModelTests : IDisposable
+/// <summary>
+/// Tests for <see cref="AddDeviceViewModel"/>.
+/// File kept as ComPortViewModelTests for project compatibility.
+/// </summary>
+public class AddDeviceViewModelTests : IDisposable
 {
-    private readonly Mock<ISerialPortService> _serialPort = new();
-    private readonly BarcodeParser            _parser     = new();
+    private readonly Mock<IBarcodeInputService> _testService = new();
+    private readonly BarcodeParser              _parser      = new();
 
     private EventHandler<string>? _dataHandler;
 
-    public ComPortViewModelTests()
+    private readonly IReadOnlyList<BarcodeDeviceInfo> _devices = new[]
     {
-        _serialPort.Setup(p => p.GetAvailablePorts())
-                   .Returns(new List<string> { "COM1", "COM2", "COM3" });
-        _serialPort.Setup(p => p.Open(It.IsAny<string>())).Returns(true);
-        _serialPort.SetupAdd(p => p.DataReceived += It.IsAny<EventHandler<string>>())
-                   .Callback<EventHandler<string>>(h => _dataHandler += h);
+        new BarcodeDeviceInfo("COM1", "COM1", BarcodeDeviceType.SerialPort),
+        new BarcodeDeviceInfo("COM2", "COM2", BarcodeDeviceType.SerialPort),
+        new BarcodeDeviceInfo("COM3", "COM3", BarcodeDeviceType.SerialPort),
+    };
+
+    public AddDeviceViewModelTests()
+    {
+        _testService.Setup(s => s.Open(It.IsAny<string>())).Returns(true);
+        _testService.SetupAdd(s => s.DataReceived += It.IsAny<EventHandler<string>>())
+                    .Callback<EventHandler<string>>(h => _dataHandler += h);
+        _testService.SetupRemove(s => s.DataReceived -= It.IsAny<EventHandler<string>>())
+                    .Callback<EventHandler<string>>(h => _dataHandler -= h);
     }
 
-    private ComPortViewModel CreateSut(string current = "COM1") =>
-        new(_serialPort.Object, _parser, current);
+    private AddDeviceViewModel CreateSut() =>
+        new(_devices, _ => _testService.Object, _parser);
 
     [Fact]
-    public void Constructor_PopulatesAvailablePorts()
+    public void Constructor_PopulatesAvailableDevices()
     {
         var sut = CreateSut();
-        sut.AvailablePorts.Should().BeEquivalentTo("COM1", "COM2", "COM3");
+        sut.AvailableDevices.Should().HaveCount(3);
         sut.Dispose();
     }
 
     [Fact]
-    public void Constructor_SetsSelectedPort_ToCurrentPort()
+    public void Constructor_SetsSelectedDevice_ToFirst()
     {
-        var sut = CreateSut("COM2");
-        sut.SelectedPort.Should().Be("COM2");
+        var sut = CreateSut();
+        sut.SelectedDevice?.DeviceId.Should().Be("COM1");
         sut.Dispose();
     }
 
@@ -50,13 +62,31 @@ public class ComPortViewModelTests : IDisposable
     }
 
     [Fact]
-    public void SelectedPort_Changed_ClosesAndReopensPort()
+    public void InitialTestResultText_ContainsScansiona()
     {
-        var sut = CreateSut("COM1");
-        sut.SelectedPort = "COM3";
+        var sut = CreateSut();
+        sut.TestResultText.Should().Contain("Scansiona");
+        sut.Dispose();
+    }
 
-        _serialPort.Verify(p => p.Close(), Times.AtLeastOnce);
-        _serialPort.Verify(p => p.Open("COM3"), Times.Once);
+    [Fact]
+    public void InitialIsAddEnabled_IsFalse()
+    {
+        var sut = CreateSut();
+        sut.IsAddEnabled.Should().BeFalse();
+        sut.Dispose();
+    }
+
+    [Fact]
+    public void SelectedDevice_Changed_ClosesAndOpensNewDevice()
+    {
+        var sut    = CreateSut();
+        var newDev = _devices.First(d => d.DeviceId == "COM3");
+
+        sut.SelectedDevice = newDev;
+
+        _testService.Verify(s => s.Close(), Times.AtLeastOnce);
+        _testService.Verify(s => s.Open("COM3"), Times.AtLeastOnce);
         sut.Dispose();
     }
 

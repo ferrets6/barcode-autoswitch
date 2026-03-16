@@ -1,4 +1,5 @@
 using BarcodeAutoSwitch.Core.Interfaces;
+using BarcodeAutoSwitch.Core.Models;
 using BarcodeAutoSwitch.Core.Services;
 using BarcodeAutoSwitch.Infrastructure;
 using BarcodeAutoSwitch.UI.ViewModels;
@@ -22,22 +23,24 @@ public partial class App : WpfApp
     {
         base.OnStartup(e);
 
+        // Redirect Console.Write* to the WPF debug log window
+        AppLogger.Initialize();
+
         InitialiseCef();
 
         // ── Build configuration ───────────────────────────────────────────────
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json",       optional: false, reloadOnChange: false)
-            .AddJsonFile("appsettings.local.json",  optional: true,  reloadOnChange: false)
+            .AddJsonFile("appsettings.json",      optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.local.json", optional: true,  reloadOnChange: false)
             .Build();
 
         // ── Compose object graph (manual DI) ─────────────────────────────────
-        var appSettings     = new AppSettings(config);
-        var serialPort      = new SerialPortService();
-        var windowSwitcher  = new WindowSwitcher();
-        var keyboardSender  = new KeyboardSender();
-        var barcodeParser   = new BarcodeParser();
-        var barcodeRouter   = new BarcodeRouter(new IRoutingStrategy[]
+        var appSettings    = new AppSettings(config);
+        var windowSwitcher = new WindowSwitcher();
+        var keyboardSender = new KeyboardSender();
+        var barcodeParser  = new BarcodeParser();
+        var barcodeRouter  = new BarcodeRouter(new IRoutingStrategy[]
         {
             new NewspaperRoutingStrategy(),
             new DefaultRoutingStrategy()
@@ -46,11 +49,19 @@ public partial class App : WpfApp
         AdriaticaPressVenditaUrl = appSettings.AdriaticaPressVenditaUrl;
         AdriaticaPressLoginUrl   = appSettings.AdriaticaPressLoginUrl;
 
-        var viewModel  = new MainViewModel(serialPort, barcodeParser, barcodeRouter,
-                                           windowSwitcher, keyboardSender, appSettings);
+        IBarcodeInputService ServiceFactory(BarcodeDeviceType t) => CreateInputService(t);
+
+        var viewModel  = new MainViewModel(barcodeParser, barcodeRouter,
+                                           windowSwitcher, keyboardSender, appSettings,
+                                           ServiceFactory);
         var mainWindow = new MainWindow(viewModel);
         mainWindow.Show();
     }
+
+    private static IBarcodeInputService CreateInputService(BarcodeDeviceType type) =>
+        type == BarcodeDeviceType.UsbHid
+            ? new RawInputBarcodeService()
+            : new SerialPortService();
 
     private static void InitialiseCef()
     {
@@ -63,7 +74,6 @@ public partial class App : WpfApp
                 "BarcodeAutoSwitch", "CefCache")
         };
         settings.CefCommandLineArgs.Add("enable-media-stream", "1");
-        // Needed on some older hardware
         settings.CefCommandLineArgs.Add("disable-gpu", "1");
 
         Cef.Initialize(settings, performDependencyCheck: true, browserProcessHandler: null);

@@ -2,6 +2,7 @@ using BarcodeAutoSwitch.Core.Interfaces;
 using BarcodeAutoSwitch.Core.Models;
 using BarcodeAutoSwitch.Infrastructure;
 using BarcodeAutoSwitch.UI.Commands;
+using BarcodeAutoSwitch.Windows;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -11,31 +12,34 @@ using Thread = System.Threading.Thread;
 namespace BarcodeAutoSwitch.UI.ViewModels;
 
 /// <summary>
-/// Main application ViewModel. Owns the barcode processing pipeline and
-/// exposes only presentation state to the view — no Win32 / UI code here.
+/// Main application ViewModel.
+/// Manages a list of active barcode-input services (one per configured device)
+/// that all feed the same processing pipeline simultaneously.
 /// </summary>
 public class MainViewModel : INotifyPropertyChanged, IDisposable
 {
-    private readonly ISerialPortService _serialPort;
-    private readonly IBarcodeParser     _parser;
-    private readonly IBarcodeRouter     _router;
-    private readonly IWindowSwitcher    _windowSwitcher;
-    private readonly IKeyboardSender    _keyboard;
-    private readonly IAppSettings       _settings;
+    private readonly IBarcodeParser   _parser;
+    private readonly IBarcodeRouter   _router;
+    private readonly IWindowSwitcher  _windowSwitcher;
+    private readonly IKeyboardSender  _keyboard;
+    private readonly IAppSettings     _settings;
+    private readonly Func<BarcodeDeviceType, IBarcodeInputService> _serviceFactory;
+
+    // All currently-open input services (one per active configured device)
+    private readonly List<IBarcodeInputService> _activeServices = new();
 
     private bool _isAutoSwitchEnabled = true;
-    private bool _isBrowserVisible   = true;
+    private bool _isBrowserVisible    = true;
 
-    // ── Public events for things the View must do ─────────────────────────────
-    /// <summary>Raised when a newspaper barcode arrives and the browser must receive Alt+T.</summary>
+    // ── Events for the View ───────────────────────────────────────────────────
     public event EventHandler? BarcodeForAdriaticaPress;
-    /// <summary>Raised when the user (or a barcode) requests the COM-port dialog.</summary>
-    public event EventHandler? RequestChangeCOMPort;
+    /// <summary>Raised when the user clicks "Gestisci dispositivi".</summary>
+    public event EventHandler? RequestManageDevices;
 
     // ── Commands ──────────────────────────────────────────────────────────────
-    public ICommand ToggleAutoSwitchCommand  { get; }
-    public ICommand ShowHideConsoleCommand   { get; }
-    public ICommand ChangeCOMPortCommand     { get; }
+    public ICommand ToggleAutoSwitchCommand { get; }
+    public ICommand ShowDebugLogCommand     { get; }
+    public ICommand ManageDevicesCommand    { get; }
 
     // ── Bindable properties ───────────────────────────────────────────────────
     public bool IsAutoSwitchEnabled
@@ -63,47 +67,139 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string StatusText             => IsAutoSwitchEnabled ? "Attivo"    : "Non attivo";
-    public string StatusColor            => IsAutoSwitchEnabled ? "Green"     : "Red";
+    public string StatusText              => IsAutoSwitchEnabled ? "Attivo"    : "Non attivo";
+    public string StatusColor             => IsAutoSwitchEnabled ? "Green"     : "Red";
     public string EnableDisableButtonText => IsAutoSwitchEnabled ? "Disattiva" : "Attiva";
 
     // ── Constructor ───────────────────────────────────────────────────────────
     public MainViewModel(
-        ISerialPortService serialPort,
-        IBarcodeParser     parser,
-        IBarcodeRouter     router,
-        IWindowSwitcher    windowSwitcher,
-        IKeyboardSender    keyboard,
-        IAppSettings       settings)
+        IBarcodeParser                               parser,
+        IBarcodeRouter                               router,
+        IWindowSwitcher                              windowSwitcher,
+        IKeyboardSender                              keyboard,
+        IAppSettings                                 settings,
+        Func<BarcodeDeviceType, IBarcodeInputService> serviceFactory)
     {
-        _serialPort     = serialPort;
         _parser         = parser;
         _router         = router;
         _windowSwitcher = windowSwitcher;
         _keyboard       = keyboard;
         _settings       = settings;
+        _serviceFactory = serviceFactory;
 
         ToggleAutoSwitchCommand = new RelayCommand(ToggleAutoSwitch);
-        ShowHideConsoleCommand  = new RelayCommand(Win32Console.ShowHide);
-        ChangeCOMPortCommand    = new RelayCommand(OnChangeCOMPort);
+        ShowDebugLogCommand     = new RelayCommand(DebugLogWindow.ShowHide);
+        ManageDevicesCommand    = new RelayCommand(OnManageDevices);
 
-        _serialPort.DataReceived  += HandleDataReceived;
-        _serialPort.ErrorReceived += HandleErrorReceived;
-
-        bool opened = _serialPort.Open(_settings.SelectedSerialPort);
-        IsBrowserVisible = opened;
+        LoadAndStartDevicesFromSettings();
     }
 
+    // ── Device management ─────────────────────────────────────────────────────
+
+    private void LoadAndStartDevicesFromSettings()
+    {
+        DisposeActiveServices();
+
+        bool anyOpened = false;
+
+        foreach (var device in _settings.ConfiguredDevices)
+        {
+            string resolvedId = ResolveDeviceId(device);
+            var service = _serviceFactory(device.Type);
+            bool opened = service.Open(resolvedId);
+
+            device.IsAvailable = opened;
+
+            if (opened)
+            {
+                service.DataReceived  += HandleDataReceived;
+                service.ErrorReceived += HandleErrorReceived;
+                _activeServices.Add(service);
+                anyOpened = true;
+            }
+            else
+            {
+                Console.WriteLine($"[DEVICES] Dispositivo non disponibile: {device.DisplayName} ({device.DeviceId})");
+                service.Dispose();
+            }
+        }
+
+        // Browser shown when: no devices configured (fresh install) OR at least one opened
+        IsBrowserVisible = _settings.ConfiguredDevices.Count == 0 || anyOpened;
+    }
+
+    private void DisposeActiveServices()
+    {
+        foreach (var svc in _activeServices)
+        {
+            svc.DataReceived  -= HandleDataReceived;
+            svc.ErrorReceived -= HandleErrorReceived;
+            svc.Close();
+            svc.Dispose();
+        }
+        _activeServices.Clear();
+    }
+
+    /// <summary>
+    /// Resolves the effective device ID for a <see cref="SavedDevice"/>.
+    /// For COM-port devices with a stored hardware ID, tries to find the current
+    /// port by VID/PID; falls back to the saved port name if not found.
+    /// </summary>
+    private static string ResolveDeviceId(SavedDevice device)
+    {
+        if (device.Type == BarcodeDeviceType.SerialPort && device.HardwareId != null)
+        {
+            string? found = ComPortEnumerator.GetPortForHardwareId(device.HardwareId);
+            if (found != null)
+            {
+                if (found != device.DeviceId)
+                    Console.WriteLine($"[DEVICES] {device.HardwareId} trovato su {found} (salvato: {device.DeviceId})");
+                return found;
+            }
+            Console.WriteLine($"[DEVICES] {device.HardwareId} non trovato, uso porta salvata {device.DeviceId}");
+        }
+        return device.DeviceId;
+    }
+
+    private void OnManageDevices()
+    {
+        // Close all services; the dialog manages its own test services independently.
+        // When the dialog closes, ApplyDeviceList / ReopenFromSettings rebuilds them.
+        DisposeActiveServices();
+        RequestManageDevices?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Saves the new device list and opens all found services.
+    /// Called by the device-management dialog when the user confirms changes.
+    /// </summary>
+    public void ApplyDeviceList(IReadOnlyList<SavedDevice> devices)
+    {
+        _settings.ConfiguredDevices = devices.ToList();
+        _settings.Save();
+        LoadAndStartDevicesFromSettings();
+    }
+
+    /// <summary>
+    /// Re-opens services from the current settings without saving.
+    /// Called when the management dialog is closed without making changes.
+    /// </summary>
+    public void ReopenFromSettings() => LoadAndStartDevicesFromSettings();
+
+    /// <summary>Returns the configured devices (with IsAvailable flags set at last startup).</summary>
+    public IReadOnlyList<SavedDevice> GetConfiguredDevices() => _settings.ConfiguredDevices;
+
     // ── Barcode pipeline ──────────────────────────────────────────────────────
+
     private void HandleDataReceived(object? sender, string rawData)
     {
-        Console.WriteLine($"[SERIALE] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
+        Console.WriteLine($"[INPUT] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
 
         if (_parser.IsControlCode(rawData, out var controlType))
         {
-            Console.WriteLine($"[SERIALE] Codice di controllo: {controlType}");
+            Console.WriteLine($"[INPUT] Codice di controllo: {controlType}");
             if (controlType == ControlCodeType.EnableDisableToggle)
-                WpfApplication.Current.Dispatcher.Invoke(ToggleAutoSwitch);
+                RunOnUiThread(ToggleAutoSwitch);
         }
         else
         {
@@ -126,18 +222,14 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 case BarcodeDestination.AdriaticaPress:
                     _windowSwitcher.BringToFront("BarcodeAutoSwitch");
-                    // Focus the browser on the UI thread; this call BLOCKS until done
-                    WpfApplication.Current.Dispatcher.Invoke(() =>
-                        BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty));
-                    // SendKeys are called here, on the BACKGROUND serial thread,
-                    // exactly as the original .NET 4.5 code did (see old MainWindow.xaml.cs)
+                    RunOnUiThread(() => BarcodeForAdriaticaPress?.Invoke(this, EventArgs.Empty));
                     Console.WriteLine($"[KEYBOARD] Invio Alt+T al browser");
                     _keyboard.SendAlt('T');
-                    Thread.Sleep(100); // attesa minima per apertura campo di testo
+                    Thread.Sleep(100);
                     Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}'");
                     _keyboard.SendText(reading.CodeValue);
                     _keyboard.SendKey("{ENTER}");
-                    Thread.Sleep(100); // attesa risposta del sito (non blocca la UI)
+                    Thread.Sleep(100);
                     Console.WriteLine("[KEYBOARD] Invio completato.");
                     return;
 
@@ -161,35 +253,26 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void HandleErrorReceived(object? sender, string error)
     {
-        Console.WriteLine($"Errore porta seriale: {error}");
-        WpfApplication.Current.Dispatcher.Invoke(() => IsBrowserVisible = false);
+        Console.WriteLine($"Errore dispositivo: {error}");
+        // Don't hide browser on single device error when others are still active
     }
 
     // ── Command implementations ───────────────────────────────────────────────
+
     private void ToggleAutoSwitch()
     {
         IsAutoSwitchEnabled = !IsAutoSwitchEnabled;
         Console.WriteLine($"Auto Switch: {(IsAutoSwitchEnabled ? "abilitato" : "disabilitato")}");
     }
 
-    private void OnChangeCOMPort()
-    {
-        _serialPort.Close();
-        RequestChangeCOMPort?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Called by the View after the COM-port dialog closes.</summary>
-    public void ApplyNewCOMPort(string portName)
-    {
-        _settings.SelectedSerialPort = portName;
-        _settings.Save();
-        bool opened = _serialPort.Open(portName);
-        IsBrowserVisible = opened;
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
-    /// <summary>Returns the currently configured serial port name.</summary>
-    public string GetCurrentPort() => _settings.SelectedSerialPort;
+
+    private static void RunOnUiThread(Action action)
+    {
+        var d = WpfApplication.Current.Dispatcher;
+        if (d.CheckAccess()) action();
+        else d.Invoke(action);
+    }
 
     // ── INotifyPropertyChanged ────────────────────────────────────────────────
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -197,10 +280,5 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     protected virtual void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-    public void Dispose()
-    {
-        _serialPort.DataReceived  -= HandleDataReceived;
-        _serialPort.ErrorReceived -= HandleErrorReceived;
-        _serialPort.Dispose();
-    }
+    public void Dispose() => DisposeActiveServices();
 }

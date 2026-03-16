@@ -1,3 +1,5 @@
+using BarcodeAutoSwitch.Core.Interfaces;
+using BarcodeAutoSwitch.Core.Models;
 using BarcodeAutoSwitch.Infrastructure;
 using BarcodeAutoSwitch.UI.ViewModels;
 using System.Windows;
@@ -16,15 +18,14 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         viewModel.BarcodeForAdriaticaPress += OnBarcodeForAdriaticaPress;
-        viewModel.RequestChangeCOMPort      += OnRequestChangeCOMPort;
-        viewModel.PropertyChanged           += OnViewModelPropertyChanged;
+        viewModel.RequestManageDevices     += OnRequestManageDevices;
+        viewModel.PropertyChanged          += OnViewModelPropertyChanged;
 
         // Detect HTTP 5xx from the Adriatica Press server
         var requestHandler = new HttpErrorRequestHandler();
         requestHandler.ServerError += OnAdriaticaPressServerError;
         Browser.RequestHandler = requestHandler;
 
-        // Set initial browser address once the browser is loaded
         Browser.IsBrowserInitializedChanged += OnBrowserInitialized;
     }
 
@@ -32,7 +33,6 @@ public partial class MainWindow : Window
     {
         if (Browser.IsBrowserInitialized && _viewModel.IsBrowserVisible)
         {
-            // Navigate to Adriatica Press; address is injected via App
             Browser.Address = App.AdriaticaPressVenditaUrl;
             Browser.LoadingStateChanged += OnLoadingStateChanged;
         }
@@ -41,9 +41,7 @@ public partial class MainWindow : Window
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.IsBrowserVisible) && _viewModel.IsBrowserVisible)
-        {
             Browser.IsBrowserInitializedChanged += OnBrowserInitialized;
-        }
     }
 
     private void OnLoadingStateChanged(object? sender, CefSharp.LoadingStateChangedEventArgs args)
@@ -53,7 +51,6 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             string address = Browser.Address ?? string.Empty;
-            // Keep users inside the Adriatica Press application
             if (!address.Contains(App.AdriaticaPressLoginUrl, StringComparison.OrdinalIgnoreCase)
                 && address != App.AdriaticaPressVenditaUrl)
             {
@@ -64,15 +61,18 @@ public partial class MainWindow : Window
 
     private void OnBarcodeForAdriaticaPress(object? sender, EventArgs e)
     {
-        // Focus the browser — SendKeys are sent by the background (serial) thread
-        // AFTER this Dispatcher.Invoke returns, matching the original .NET 4.5 pattern
         this.Focus();
         Browser.Focus();
     }
 
-    private void OnRequestChangeCOMPort(object? sender, EventArgs e)
+    private void OnRequestManageDevices(object? sender, EventArgs e)
     {
-        var dialog = new ComPortWindow(_viewModel);
+        IBarcodeInputService ServiceFactory(BarcodeDeviceType t) =>
+            t == BarcodeDeviceType.UsbHid
+                ? new RawInputBarcodeService()
+                : (IBarcodeInputService)new SerialPortService();
+
+        var dialog = new DeviceManagementWindow(_viewModel, ServiceFactory) { Owner = this };
         dialog.ShowDialog();
     }
 
@@ -90,8 +90,8 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _viewModel.BarcodeForAdriaticaPress -= OnBarcodeForAdriaticaPress;
-        _viewModel.RequestChangeCOMPort      -= OnRequestChangeCOMPort;
-        _viewModel.PropertyChanged           -= OnViewModelPropertyChanged;
+        _viewModel.RequestManageDevices     -= OnRequestManageDevices;
+        _viewModel.PropertyChanged          -= OnViewModelPropertyChanged;
         _viewModel.Dispose();
         CefSharp.Cef.Shutdown();
         base.OnClosed(e);
