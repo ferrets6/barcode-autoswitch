@@ -140,26 +140,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         _activeServices.Clear();
     }
 
-    /// <summary>
-    /// Resolves the effective device ID for a <see cref="SavedDevice"/>.
-    /// For COM-port devices with a stored hardware ID, tries to find the current
-    /// port by VID/PID; falls back to the saved port name if not found.
-    /// </summary>
-    private static string ResolveDeviceId(SavedDevice device)
-    {
-        if (device.Type == BarcodeDeviceType.SerialPort && device.HardwareId != null)
-        {
-            string? found = ComPortEnumerator.GetPortForHardwareId(device.HardwareId);
-            if (found != null)
-            {
-                if (found != device.DeviceId)
-                    Console.WriteLine($"[DEVICES] {device.HardwareId} trovato su {found} (salvato: {device.DeviceId})");
-                return found;
-            }
-            Console.WriteLine($"[DEVICES] {device.HardwareId} non trovato, uso porta salvata {device.DeviceId}");
-        }
-        return device.DeviceId;
-    }
+    private static string ResolveDeviceId(SavedDevice device) => device.DeviceId;
 
     private void OnManageDevices()
     {

@@ -23,6 +23,9 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
     private const uint   RIDEV_REMOVE             = 0x00000001;
     private const uint   RID_INPUT                = 0x10000003;
     private const uint   RIM_TYPEKEYBOARD         = 1;
+    private const uint   RIM_TYPEHID              = 2;
+    private const ushort HID_USAGE_PAGE_POS       = 0x8C;
+    private const ushort HID_USAGE_POS_SCANNER    = 0x02;
     private const uint   RIDI_DEVICENAME          = 0x20000007;
     private const ushort HID_USAGE_PAGE_GENERIC   = 0x01;
     private const ushort HID_USAGE_GENERIC_KEYBOARD = 0x06;
@@ -87,9 +90,9 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
         IntPtr hRawInput, uint uiCommand, IntPtr pData,
         ref uint pcbSize, uint cbSizeHeader);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetRawInputDeviceList(
-        [MarshalAs(UnmanagedType.LPArray)] RAWINPUTDEVICELIST[]? pRawInputDeviceList,
+        IntPtr pRawInputDeviceList,
         ref uint puiNumDevices, uint cbSize);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -148,10 +151,17 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
                     usUsage     = HID_USAGE_GENERIC_KEYBOARD,
                     dwFlags     = RIDEV_INPUTSINK,
                     hwndTarget  = _hwndSource.Handle
+                },
+                new RAWINPUTDEVICE
+                {
+                    usUsagePage = HID_USAGE_PAGE_POS,
+                    usUsage     = HID_USAGE_POS_SCANNER,
+                    dwFlags     = RIDEV_INPUTSINK,
+                    hwndTarget  = _hwndSource.Handle
                 }
             };
 
-            if (!RegisterRawInputDevices(rid, 1, (uint)Marshal.SizeOf<RAWINPUTDEVICE>()))
+            if (!RegisterRawInputDevices(rid, (uint)rid.Length, (uint)Marshal.SizeOf<RAWINPUTDEVICE>()))
             {
                 Console.WriteLine($"[USB] Registrazione Raw Input fallita (errore {Marshal.GetLastWin32Error()})");
                 Close();
@@ -185,9 +195,16 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
                     usUsage     = HID_USAGE_GENERIC_KEYBOARD,
                     dwFlags     = RIDEV_REMOVE,
                     hwndTarget  = IntPtr.Zero
+                },
+                new RAWINPUTDEVICE
+                {
+                    usUsagePage = HID_USAGE_PAGE_POS,
+                    usUsage     = HID_USAGE_POS_SCANNER,
+                    dwFlags     = RIDEV_REMOVE,
+                    hwndTarget  = IntPtr.Zero
                 }
             };
-            RegisterRawInputDevices(rid, 1, (uint)Marshal.SizeOf<RAWINPUTDEVICE>());
+            RegisterRawInputDevices(rid, (uint)rid.Length, (uint)Marshal.SizeOf<RAWINPUTDEVICE>());
         }
         catch { /* ignore on close */ }
 
@@ -231,7 +248,6 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
             if (written != size) return;
 
             var raw = Marshal.PtrToStructure<RAWINPUT>(buf);
-            if (raw.header.dwType != RIM_TYPEKEYBOARD) return;
 
             // Filter by specific device when requested
             if (_deviceId != AnyDeviceId)
@@ -240,6 +256,14 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
                 if (!string.Equals(name, _deviceId, StringComparison.OrdinalIgnoreCase))
                     return;
             }
+
+            if (raw.header.dwType == RIM_TYPEHID)
+            {
+                ProcessHidReport(buf);
+                return;
+            }
+
+            if (raw.header.dwType != RIM_TYPEKEYBOARD) return;
 
             ushort vkey  = raw.keyboard.VKey;
             bool   isUp  = (raw.keyboard.Flags & RI_KEY_BREAK) != 0;
@@ -281,6 +305,72 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
         }
     }
 
+    // ── POS HID report parsing ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses a raw HID report from a POS barcode scanner (Usage Page 0x8C).
+    ///
+    /// Most scanners use the format: [reportId] [dataLen] [barcodeBytes…]
+    /// where reportId &lt; 0x20. Falls back to extracting all printable ASCII bytes.
+    /// </summary>
+    private void ProcessHidReport(IntPtr buf)
+    {
+        int  headerSize = Marshal.SizeOf<RAWINPUTHEADER>();
+        uint sizeHid    = (uint)Marshal.ReadInt32(buf, headerSize);      // dwSizeHid
+        uint count      = (uint)Marshal.ReadInt32(buf, headerSize + 4);  // dwCount
+        if (count == 0 || sizeHid == 0) return;
+
+        // bRawData starts right after the two DWORDs
+        int  dataOffset  = headerSize + 8;
+        var  reportBytes = new byte[sizeHid];
+        Marshal.Copy(buf + dataOffset, reportBytes, 0, (int)sizeHid);
+
+        // Try standard POS HID format: byte[0]=reportId (<0x20), byte[1]=length, bytes[2..]=data
+        if (sizeHid >= 3 && reportBytes[0] < 0x20)
+        {
+            int dataLen = reportBytes[1];
+            if (dataLen > 0 && dataLen <= sizeHid - 2)
+            {
+                string barcode = Encoding.ASCII.GetString(reportBytes, 2, dataLen).TrimEnd('\0', '\r', '\n');
+                if (!string.IsNullOrEmpty(barcode))
+                {
+                    Console.WriteLine($"[POS-HID] Barcode ricevuto: '{barcode}'");
+                    DataReceived(this, barcode);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: accumulate printable ASCII; flush on empty/padding report
+        bool anyPrintable = false;
+        for (int i = 0; i < sizeHid; i++)
+        {
+            byte b = reportBytes[i];
+            if (b == 0x00) break;
+            if (b == 0x0D || b == 0x0A)          // CR / LF = end of barcode
+            {
+                if (_buffer.Length > 0)
+                {
+                    string barcode = _buffer.ToString();
+                    _buffer.Clear();
+                    Console.WriteLine($"[POS-HID] Barcode ricevuto: '{barcode}'");
+                    DataReceived(this, barcode);
+                }
+                return;
+            }
+            if (b >= 0x20 && b < 0x7F) { _buffer.Append((char)b); anyPrintable = true; }
+        }
+
+        if (!anyPrintable && _buffer.Length > 0)
+        {
+            // No printable bytes in this report → the previous data is a complete barcode
+            string barcode = _buffer.ToString();
+            _buffer.Clear();
+            Console.WriteLine($"[POS-HID] Barcode ricevuto: '{barcode}'");
+            DataReceived(this, barcode);
+        }
+    }
+
     // ── Key mapping ───────────────────────────────────────────────────────────
 
     private static char VKeyToChar(ushort vkey, ushort scanCode, bool shift)
@@ -305,33 +395,50 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
     /// </summary>
     public static IReadOnlyList<BarcodeDeviceInfo> GetAvailableDevices()
     {
-        uint count = 0;
-        GetRawInputDeviceList(null, ref count, (uint)Marshal.SizeOf<RAWINPUTDEVICELIST>());
+        Console.WriteLine($"[USB-ENUM] BUILD 2026-03-16b — GetAvailableDevices chiamato");
+
+        uint count      = 0;
+        uint structSize = (uint)Marshal.SizeOf<RAWINPUTDEVICELIST>();
+
+        // Prima chiamata con IntPtr.Zero per ottenere il conteggio
+        GetRawInputDeviceList(IntPtr.Zero, ref count, structSize);
         if (count == 0) return [];
 
-        var list = new RAWINPUTDEVICELIST[count];
-        GetRawInputDeviceList(list, ref count, (uint)Marshal.SizeOf<RAWINPUTDEVICELIST>());
-
-        var result = new List<BarcodeDeviceInfo>();
-        int idx = 1;
-        foreach (var dev in list)
+        // Alloca buffer non gestito — evita il bug di marshaling di [MarshalAs(LPArray)]
+        // dove i campi IntPtr nelle struct vengono azzerati al ritorno
+        IntPtr buf = Marshal.AllocHGlobal((int)(count * structSize));
+        try
         {
-            if (dev.dwType != RIM_TYPEKEYBOARD) continue;
-            string id = GetDeviceName(dev.hDevice);
-            if (string.IsNullOrEmpty(id)) continue;
-            result.Add(new BarcodeDeviceInfo(id, BuildFriendlyName(id, idx++), BarcodeDeviceType.UsbHid));
+            uint ret = GetRawInputDeviceList(buf, ref count, structSize);
+            Console.WriteLine($"[USB-ENUM] ret={ret}, count={count}, structSize={structSize}, win32err={Marshal.GetLastWin32Error()}");
+
+            var result = new List<BarcodeDeviceInfo>();
+            int idx    = 1;
+            for (uint i = 0; i < count; i++)
+            {
+                var dev = Marshal.PtrToStructure<RAWINPUTDEVICELIST>(buf + (int)(i * structSize));
+                string id = GetDeviceName(dev.hDevice);
+                Console.WriteLine($"[USB-ENUM]   [{i}] type={dev.dwType} hDevice=0x{dev.hDevice:X} path={id}");
+                if (dev.dwType != RIM_TYPEKEYBOARD && dev.dwType != RIM_TYPEHID) continue;
+                if (string.IsNullOrEmpty(id)) continue;
+                result.Add(new BarcodeDeviceInfo(id, BuildFriendlyName(id, idx++, dev.dwType), BarcodeDeviceType.UsbHid));
+            }
+            return result;
         }
-        return result;
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
     }
 
-    private static string BuildFriendlyName(string devicePath, int index)
+    private static string BuildFriendlyName(string devicePath, int index, uint dwType)
     {
         // Path looks like \\?\HID#VID_0483&PID_0011#6&...
         // Extract the hardware ID segment for a friendlier display name
-        var parts = devicePath.Split('#');
-        if (parts.Length >= 2)
-            return $"USB Tastiera {index} ({parts[1].Replace('&', ' ')})";
-        return $"USB Tastiera {index}";
+        var    parts  = devicePath.Split('#');
+        string hwPart = parts.Length >= 2 ? parts[1].Replace('&', ' ') : string.Empty;
+        string label  = dwType == RIM_TYPEHID ? "USB Scanner POS" : "USB Tastiera";
+        return string.IsNullOrEmpty(hwPart) ? $"{label} {index}" : $"{label} {index} ({hwPart})";
     }
 
     private static string GetDeviceName(IntPtr hDevice)

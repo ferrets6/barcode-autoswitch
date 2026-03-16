@@ -13,6 +13,13 @@ public class BarcodeParser : IBarcodeParser
     private const string EnableDisableToggleCode = "111111111100000011111111";
     private const string CheckPortCode           = "111111111122222200000000";
 
+    private readonly bool _trimTrailingZeros;
+
+    public BarcodeParser(bool trimTrailingZeros = false)
+    {
+        _trimTrailingZeros = trimTrailingZeros;
+    }
+
     public BarcodeReading Parse(string rawInput)
     {
         if (string.IsNullOrEmpty(rawInput) || rawInput.Length < 2)
@@ -35,24 +42,31 @@ public class BarcodeParser : IBarcodeParser
 
     public bool IsControlCode(string rawInput, out ControlCodeType controlType)
     {
-        if (rawInput.Length < 2)
+        if (rawInput.Length < 1)
         {
             controlType = ControlCodeType.None;
             return false;
         }
 
-        string code = rawInput[1..];
+        // Candidates: full input (USB HID — no prefix) and input minus first char (serial — has identifier prefix)
+        string[] candidates = rawInput.Length >= 2
+            ? [rawInput, rawInput[1..]]
+            : [rawInput];
 
-        if (code == EnableDisableToggleCode)
+        foreach (string candidate in candidates)
         {
-            controlType = ControlCodeType.EnableDisableToggle;
-            return true;
-        }
+            if (candidate == EnableDisableToggleCode)
+            {
+                controlType = ControlCodeType.EnableDisableToggle;
+                return true;
+            }
 
-        if (code == CheckPortCode)
-        {
-            controlType = ControlCodeType.CheckPort;
-            return true;
+            string norm = _trimTrailingZeros ? candidate.TrimEnd('0') : candidate;
+            if (norm == CheckPortCode.TrimEnd('0'))
+            {
+                controlType = ControlCodeType.CheckPort;
+                return true;
+            }
         }
 
         controlType = ControlCodeType.None;

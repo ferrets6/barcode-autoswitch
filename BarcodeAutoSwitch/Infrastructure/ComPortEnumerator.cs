@@ -5,11 +5,9 @@ using System.IO.Ports;
 namespace BarcodeAutoSwitch.Infrastructure;
 
 /// <summary>
-/// Enumerates available COM serial ports and, where possible, resolves each
-/// port's USB hardware identifier (VID/PID) from the Windows registry.
-///
-/// This lets the app re-find the correct COM port even if its number changes
-/// (e.g. COM3 → COM5 after plugging into a different USB hub).
+/// Enumerates available COM serial ports and, where possible, annotates each
+/// port with its USB hardware identifier (VID/PID) for display purposes.
+/// The COM port name itself is the canonical device identifier.
 /// </summary>
 public static class ComPortEnumerator
 {
@@ -29,24 +27,6 @@ public static class ComPortEnumerator
                 return new ComPortInfo(p, found ? hw : null, display);
             })
             .ToList();
-    }
-
-    /// <summary>
-    /// Given a stored hardware ID (e.g. "USB\VID_067B&PID_2303"), returns the
-    /// COM port name currently assigned to that device, or <c>null</c> if the
-    /// device is not connected.
-    ///
-    /// Matching is VID/PID-level: "USB\VID_067B&PID_2303" matches both
-    /// "USB\VID_067B&PID_2303" and "USB\VID_067B&PID_2303&MI_00" (composite).
-    /// </summary>
-    public static string? GetPortForHardwareId(string hardwareId)
-    {
-        foreach (var (port, hw) in BuildHardwareIdMap())
-        {
-            if (HardwareIdMatches(hardwareId, hw))
-                return port;
-        }
-        return null;
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
@@ -84,26 +64,5 @@ public static class ComPortEnumerator
         }
     }
 
-    /// <summary>
-    /// Returns true when <paramref name="stored"/> and <paramref name="actual"/>
-    /// refer to the same device, ignoring composite-device interface suffixes.
-    /// e.g. stored="USB\VID_A&PID_B" matches actual="USB\VID_A&PID_B&MI_00"
-    /// </summary>
-    private static bool HardwareIdMatches(string stored, string actual)
-    {
-        if (string.Equals(stored, actual, StringComparison.OrdinalIgnoreCase))
-            return true;
 
-        // stored is shorter (no &MI_xx) and actual has it
-        if (actual.StartsWith(stored, StringComparison.OrdinalIgnoreCase)
-            && actual.Length > stored.Length && actual[stored.Length] == '&')
-            return true;
-
-        // actual is shorter and stored has the suffix
-        if (stored.StartsWith(actual, StringComparison.OrdinalIgnoreCase)
-            && stored.Length > actual.Length && stored[actual.Length] == '&')
-            return true;
-
-        return false;
-    }
 }

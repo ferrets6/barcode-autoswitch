@@ -42,6 +42,12 @@ public partial class DebugLogWindow : Window
         });
     }
 
+    private void OnCopyAll(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(LogBox.Text))
+            System.Windows.Clipboard.SetText(LogBox.Text);
+    }
+
     private void OnClear(object sender, RoutedEventArgs e)
     {
         LogBox.Clear();

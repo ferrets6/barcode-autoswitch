@@ -8,6 +8,7 @@ public interface IAppSettings
     string AdriaticaPressLoginUrl      { get; }
     string AdriaticaPressAfterLoginUrl { get; }
     string NegozioFacileProcessName    { get; }
+    bool   TrimTrailingZeros           { get; }
 
     /// <summary>All barcode-scanner devices the user has configured.</summary>
     List<SavedDevice> ConfiguredDevices { get; set; }

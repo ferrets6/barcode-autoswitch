@@ -39,7 +39,7 @@ public partial class App : WpfApp
         var appSettings    = new AppSettings(config);
         var windowSwitcher = new WindowSwitcher();
         var keyboardSender = new KeyboardSender();
-        var barcodeParser  = new BarcodeParser();
+        var barcodeParser  = new BarcodeParser(appSettings.TrimTrailingZeros);
         var barcodeRouter  = new BarcodeRouter(new IRoutingStrategy[]
         {
             new NewspaperRoutingStrategy(),
