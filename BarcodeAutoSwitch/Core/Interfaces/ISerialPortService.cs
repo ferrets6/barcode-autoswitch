@@ -1,14 +1,3 @@
-namespace BarcodeAutoSwitch.Core.Interfaces;
-
-public interface ISerialPortService : IDisposable
-{
-    bool IsOpen { get; }
-    string PortName { get; }
-
-    event EventHandler<string> DataReceived;
-    event EventHandler<string> ErrorReceived;
-
-    bool Open(string portName);
-    void Close();
-    IReadOnlyList<string> GetAvailablePorts();
-}
+// ISerialPortService replaced by IBarcodeInputService (all input types) +
+// ComPortEnumerator (COM-port enumeration with hardware-ID lookup).
+// This file is kept empty to avoid merge conflicts; it can be deleted.

@@ -9,33 +9,41 @@ namespace BarcodeAutoSwitch.UnitTests.UI.ViewModels;
 
 public class MainViewModelTests : IDisposable
 {
-    private readonly Mock<ISerialPortService> _serialPort   = new();
-    private readonly Mock<IWindowSwitcher>    _windowSwitcher = new();
-    private readonly Mock<IKeyboardSender>    _keyboard     = new();
-    private readonly Mock<IAppSettings>       _settings     = new();
-    private readonly BarcodeParser            _parser       = new();
-    private readonly BarcodeRouter            _router       = new(new IRoutingStrategy[]
+    private readonly Mock<IBarcodeInputService> _service        = new();
+    private readonly Mock<IWindowSwitcher>      _windowSwitcher = new();
+    private readonly Mock<IKeyboardSender>      _keyboard       = new();
+    private readonly Mock<IAppSettings>         _settings       = new();
+    private readonly BarcodeParser              _parser         = new();
+    private readonly BarcodeRouter              _router         = new(new IRoutingStrategy[]
     {
         new NewspaperRoutingStrategy(),
         new DefaultRoutingStrategy()
     });
 
-    private readonly MainViewModel _sut;
+    private readonly List<SavedDevice> _configuredDevices = new()
+    {
+        new SavedDevice { DeviceId = "COM1", Type = BarcodeDeviceType.SerialPort, DisplayName = "COM1" }
+    };
 
-    // Capture events fired on DataReceived
     private EventHandler<string>? _dataReceivedHandler;
+
+    private readonly MainViewModel _sut;
 
     public MainViewModelTests()
     {
-        _settings.Setup(s => s.SelectedSerialPort).Returns("COM1");
+        var storedDevices = _configuredDevices;
+        _settings.SetupSet(s => s.ConfiguredDevices = It.IsAny<List<SavedDevice>>())
+                 .Callback<List<SavedDevice>>(v => storedDevices = v);
+        _settings.Setup(s => s.ConfiguredDevices).Returns(() => storedDevices);
         _settings.Setup(s => s.NegozioFacileProcessName).Returns("notepad");
-        _serialPort.Setup(p => p.Open(It.IsAny<string>())).Returns(true);
-        _serialPort.Setup(p => p.GetAvailablePorts()).Returns(new List<string> { "COM1" });
-        _serialPort.SetupAdd(p => p.DataReceived += It.IsAny<EventHandler<string>>())
-                   .Callback<EventHandler<string>>(h => _dataReceivedHandler += h);
 
-        _sut = new MainViewModel(_serialPort.Object, _parser, _router,
-                                 _windowSwitcher.Object, _keyboard.Object, _settings.Object);
+        _service.Setup(p => p.Open(It.IsAny<string>())).Returns(true);
+        _service.SetupAdd(p => p.DataReceived += It.IsAny<EventHandler<string>>())
+                .Callback<EventHandler<string>>(h => _dataReceivedHandler += h);
+
+        _sut = new MainViewModel(_parser, _router,
+                                 _windowSwitcher.Object, _keyboard.Object, _settings.Object,
+                                 _ => _service.Object);
     }
 
     // ── Initial state ─────────────────────────────────────────────────────────
@@ -56,6 +64,10 @@ public class MainViewModelTests : IDisposable
     public void InitialState_ButtonText_IsDisattiva()
         => _sut.EnableDisableButtonText.Should().Be("Disattiva");
 
+    [Fact]
+    public void InitialState_IsBrowserVisible_True_WhenDeviceOpens()
+        => _sut.IsBrowserVisible.Should().BeTrue();
+
     // ── Toggle ────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -72,8 +84,8 @@ public class MainViewModelTests : IDisposable
     [Fact]
     public void ToggleAutoSwitchCommand_ReEnables_WhenDisabled()
     {
-        _sut.ToggleAutoSwitchCommand.Execute(null); // disable
-        _sut.ToggleAutoSwitchCommand.Execute(null); // re-enable
+        _sut.ToggleAutoSwitchCommand.Execute(null);
+        _sut.ToggleAutoSwitchCommand.Execute(null);
 
         _sut.IsAutoSwitchEnabled.Should().BeTrue();
         _sut.StatusText.Should().Be("Attivo");
@@ -93,30 +105,68 @@ public class MainViewModelTests : IDisposable
         changed.Should().Contain(nameof(MainViewModel.EnableDisableButtonText));
     }
 
-    // ── Port open failure ─────────────────────────────────────────────────────
+    // ── Device open failure ───────────────────────────────────────────────────
 
     [Fact]
-    public void WhenPortFailsToOpen_IsBrowserVisible_IsFalse()
+    public void WhenAllDevicesFailToOpen_IsBrowserVisible_IsFalse()
     {
-        _serialPort.Setup(p => p.Open(It.IsAny<string>())).Returns(false);
+        var failService = new Mock<IBarcodeInputService>();
+        failService.Setup(p => p.Open(It.IsAny<string>())).Returns(false);
 
-        var vm = new MainViewModel(_serialPort.Object, _parser, _router,
-                                   _windowSwitcher.Object, _keyboard.Object, _settings.Object);
+        var devices = new List<SavedDevice>
+        {
+            new() { DeviceId = "COM1", Type = BarcodeDeviceType.SerialPort, DisplayName = "COM1" }
+        };
+        _settings.Setup(s => s.ConfiguredDevices).Returns(devices);
+
+        var vm = new MainViewModel(_parser, _router,
+                                   _windowSwitcher.Object, _keyboard.Object, _settings.Object,
+                                   _ => failService.Object);
 
         vm.IsBrowserVisible.Should().BeFalse();
         vm.Dispose();
     }
 
-    // ── ApplyNewCOMPort ───────────────────────────────────────────────────────
+    [Fact]
+    public void WhenNoDevicesConfigured_IsBrowserVisible_IsTrue()
+    {
+        _settings.Setup(s => s.ConfiguredDevices).Returns(new List<SavedDevice>());
+
+        var vm = new MainViewModel(_parser, _router,
+                                   _windowSwitcher.Object, _keyboard.Object, _settings.Object,
+                                   _ => _service.Object);
+
+        vm.IsBrowserVisible.Should().BeTrue();
+        vm.Dispose();
+    }
+
+    // ── ApplyDeviceList ───────────────────────────────────────────────────────
 
     [Fact]
-    public void ApplyNewCOMPort_SavesSettings_AndOpensPort()
+    public void ApplyDeviceList_SavesSettings_AndOpensDevices()
     {
-        _sut.ApplyNewCOMPort("COM3");
+        var newDevices = new List<SavedDevice>
+        {
+            new() { DeviceId = "COM3", Type = BarcodeDeviceType.SerialPort, DisplayName = "COM3" }
+        };
 
-        _settings.VerifySet(s => s.SelectedSerialPort = "COM3");
+        _sut.ApplyDeviceList(newDevices);
+
+        _settings.VerifySet(s => s.ConfiguredDevices = It.IsAny<List<SavedDevice>>(), Times.Once);
         _settings.Verify(s => s.Save(), Times.Once);
-        _serialPort.Verify(p => p.Open("COM3"), Times.AtLeastOnce);
+        _service.Verify(p => p.Open("COM3"), Times.AtLeastOnce);
+    }
+
+    // ── GetConfiguredDevices ──────────────────────────────────────────────────
+
+    [Fact]
+    public void GetConfiguredDevices_ReturnsSettingsDevices()
+    {
+        var devices = _sut.GetConfiguredDevices();
+
+        devices.Should().HaveCount(1);
+        devices[0].DeviceId.Should().Be("COM1");
+        devices[0].Type.Should().Be(BarcodeDeviceType.SerialPort);
     }
 
     public void Dispose() => _sut.Dispose();

@@ -8,13 +8,13 @@ namespace BarcodeAutoSwitch.Infrastructure;
 /// Implements <see cref="ISerialPortService"/> so it can be replaced by a
 /// mock/stub in tests without touching any serial hardware.
 /// </summary>
-public class SerialPortService : ISerialPortService
+public class SerialPortService : IBarcodeInputService
 {
     private SerialPort? _port;
     private const string NewLine = "\r\n";
 
-    public bool IsOpen   => _port?.IsOpen ?? false;
-    public string PortName => _port?.PortName ?? string.Empty;
+    public bool   IsOpen   => _port?.IsOpen   ?? false;
+    public string DeviceId => _port?.PortName ?? string.Empty;
 
     public event EventHandler<string> DataReceived  = delegate { };
     public event EventHandler<string> ErrorReceived = delegate { };
