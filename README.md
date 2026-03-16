@@ -70,8 +70,7 @@ Example:
       "Type": "SerialPort",
       "HardwareId": "USB\\VID_067B&PID_2303",
       "DisplayName": "COM3  (USB\\VID_067B&PID_2303)",
-      "HasIdentifierPrefix": true,
-      "TrimTrailingZeros": false
+      "HasIdentifierPrefix": true
     }
   ]
 }
@@ -83,7 +82,6 @@ Per-device fields:
 |---|---|
 | `HardwareId` | VID/PID for USB-to-serial adapters — the app re-finds the correct COM port automatically even if its number changes between reboots |
 | `HasIdentifierPrefix` | `true` if this scanner prepends a single-char type identifier before each barcode (see [Scanner protocol](#scanner-protocol-com-port)). `false` if the scanner sends the raw barcode value only; the type is then inferred from the content. Default: `true`. |
-| `TrimTrailingZeros` | `true` if this scanner appends trailing zeros to its output. Only affects activation-code recognition — regular barcodes are unaffected. |
 
 You can add entries manually for testing; the file is gitignored.
 
