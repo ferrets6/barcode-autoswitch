@@ -1,7 +1,7 @@
 namespace BarcodeAutoSwitch.Core.Interfaces;
 
 /// <summary>
-/// Common interface for all barcode input sources (COM serial port, USB HID, etc.).
+/// Common interface for all barcode input sources.
 /// All implementations expose the same event-driven pipeline so the rest of the
 /// application does not need to know which physical device is attached.
 /// </summary>

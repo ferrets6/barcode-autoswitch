@@ -23,6 +23,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -35,32 +36,34 @@
                       Height="26" Margin="0,0,0,2">
                 <ComboBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Type}" Foreground="Gray"
-                                       FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                        </StackPanel>
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
 
             <!-- Hardware ID / device path — small reference label -->
             <TextBlock Grid.Row="2" Text="{Binding SelectedDevice.HardwareId}"
-                       Foreground="Gray" FontSize="10" Margin="2,0,0,12"
+                       Foreground="Gray" FontSize="10" Margin="2,0,0,8"
                        TextTrimming="CharacterEllipsis"/>
 
-            <Separator Grid.Row="3" Margin="0,0,0,10"/>
+            <!-- Per-device options -->
+            <StackPanel Grid.Row="3" Margin="2,0,0,12">
+                <CheckBox IsChecked="{Binding HasIdentifierPrefix}"
+                          Content="Prefisso identificatore (il codice letto inizia con una lettera)"/>
+            </StackPanel>
 
-            <TextBlock Grid.Row="4" TextWrapping="Wrap" Margin="0,0,0,8">
+            <Separator Grid.Row="4" Margin="0,0,0,10"/>
+
+            <TextBlock Grid.Row="5" TextWrapping="Wrap" Margin="0,0,0,8">
                 Scansiona il codice di test con il dispositivo selezionato:
             </TextBlock>
 
             <!-- Static test-barcode image -->
-            <Image Grid.Row="5" HorizontalAlignment="Left" VerticalAlignment="Top"
+            <Image Grid.Row="6" HorizontalAlignment="Left" VerticalAlignment="Top"
                    Source="/Resources/checkPortBarcode.gif" MaxHeight="110" Margin="0,0,0,8"/>
 
             <!-- Test result as coloured text -->
-            <TextBlock Grid.Row="6"
+            <TextBlock Grid.Row="7"
                        Text="{Binding TestResultText}"
                        Foreground="{Binding TestResultColor}"
                        FontWeight="SemiBold" FontSize="13"

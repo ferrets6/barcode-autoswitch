@@ -13,14 +13,9 @@ public partial class AddDeviceWindow : Window
 
     public AddDeviceWindow(Func<BarcodeDeviceType, IBarcodeInputService> serviceFactory)
     {
-        // Build the unified device list: COM ports first, then USB HID keyboards
-        var devices = new List<BarcodeDeviceInfo>();
-
-        foreach (var port in ComPortEnumerator.GetAvailablePorts())
-            devices.Add(new BarcodeDeviceInfo(port.PortName, port.DisplayName, BarcodeDeviceType.SerialPort, port.HardwareId));
-
-        foreach (var hid in RawInputBarcodeService.GetAvailableDevices())
-            devices.Add(hid);
+        var devices = ComPortEnumerator.GetAvailablePorts()
+            .Select(p => new BarcodeDeviceInfo(p.PortName, p.DisplayName, BarcodeDeviceType.SerialPort))
+            .ToList();
 
         var parser   = new BarcodeParser();
         _viewModel   = new AddDeviceViewModel(devices, serviceFactory, parser);
@@ -40,11 +35,11 @@ public partial class AddDeviceWindow : Window
             if (sel == null) return null;
             return new SavedDevice
             {
-                DeviceId    = sel.DeviceId,
-                Type        = sel.Type,
-                HardwareId  = sel.HardwareId,
-                DisplayName = sel.DisplayName,
-                IsAvailable = true
+                DeviceId            = sel.DeviceId,
+                Type                = sel.Type,
+                DisplayName         = sel.DisplayName,
+                HasIdentifierPrefix = sel.HasIdentifierPrefix,
+                IsAvailable         = true
             };
         }
     }

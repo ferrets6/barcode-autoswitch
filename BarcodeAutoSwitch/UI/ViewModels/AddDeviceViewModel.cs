@@ -21,6 +21,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
     private BarcodeDeviceInfo?    _selectedDevice;
     private PortTestResult        _testResult = PortTestResult.Idle;
     private bool                  _suppressSelectionChanged;
+    private bool                  _hasIdentifierPrefix = true;
 
     public ObservableCollection<BarcodeDeviceInfo> AvailableDevices { get; } = new();
 
@@ -33,6 +34,17 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
             _selectedDevice = value;
             OnPropertyChanged();
             OpenSelectedDevice();
+        }
+    }
+
+    public bool HasIdentifierPrefix
+    {
+        get => _hasIdentifierPrefix;
+        set
+        {
+            if (_hasIdentifierPrefix == value) return;
+            _hasIdentifierPrefix = value;
+            OnPropertyChanged();
         }
     }
 
@@ -99,7 +111,9 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnDataReceived(object? sender, string rawData)
     {
-        if (!_parser.IsControlCode(rawData, out var controlType)) return;
+        bool isControl = _parser.IsControlCode(rawData, out var controlType, _hasIdentifierPrefix);
+        Console.WriteLine($"[VALIDAZIONE] Letto: '{rawData}' (len={rawData.Length} hasIdentifierPrefix={_hasIdentifierPrefix}) → isControlCode={isControl}, tipo={controlType}");
+        if (!isControl) return;
 
         WpfApplication.Current.Dispatcher.Invoke(() =>
         {

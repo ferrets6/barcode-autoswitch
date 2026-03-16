@@ -59,9 +59,7 @@ public partial class App : WpfApp
     }
 
     private static IBarcodeInputService CreateInputService(BarcodeDeviceType type) =>
-        type == BarcodeDeviceType.UsbHid
-            ? new RawInputBarcodeService()
-            : new SerialPortService();
+        new SerialPortService();
 
     private static void InitialiseCef()
     {

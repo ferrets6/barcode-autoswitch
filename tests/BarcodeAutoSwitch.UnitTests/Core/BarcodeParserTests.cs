@@ -11,11 +11,11 @@ public class BarcodeParserTests
     // ── Parse ─────────────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData("A12345678",  "12345678",  'A', BarcodeType.EAN8)]
-    [InlineData("M9771234567", "9771234567", 'M', BarcodeType.ISSN13Plus5)]
-    [InlineData("B9771234567890", "9771234567890", 'B', BarcodeType.EAN13)]
+    [InlineData("A12345678",       "12345678",       'A', BarcodeType.EAN8)]
+    [InlineData("M9771234567",     "9771234567",     'M', BarcodeType.ISSN13Plus5)]
+    [InlineData("B9771234567890",  "9771234567890",  'B', BarcodeType.EAN13)]
     [InlineData("N12345678901234", "12345678901234", 'N', BarcodeType.Interleaved2of5)]
-    [InlineData("Z99999",      "99999",      'Z', BarcodeType.Unknown)]
+    [InlineData("Z99999",          "99999",          'Z', BarcodeType.Unknown)]
     public void Parse_KnownPrefixes_ReturnsCorrectBarcodeType(
         string raw, string expectedCode, char expectedId, BarcodeType expectedType)
     {
@@ -62,9 +62,38 @@ public class BarcodeParserTests
     }
 
     [Fact]
+    public void IsControlCode_CheckPortWithExtraZeros_TrimEnabled_ReturnsTrue()
+    {
+        // Scanner pads output with extra zeros; TrimTrailingZeros strips them
+        bool result = _sut.IsControlCode("X11111111112222220000000000000", out var type, trimTrailingZeros: true);
+
+        result.Should().BeTrue();
+        type.Should().Be(ControlCodeType.CheckPort);
+    }
+
+    [Fact]
+    public void IsControlCode_CheckPortWithExtraZeros_TrimDisabled_ReturnsFalse()
+    {
+        bool result = _sut.IsControlCode("X11111111112222220000000000000", out var type, trimTrailingZeros: false);
+
+        result.Should().BeFalse();
+        type.Should().Be(ControlCodeType.None);
+    }
+
+    [Fact]
     public void IsControlCode_NormalBarcode_ReturnsFalse()
     {
         bool result = _sut.IsControlCode("B9771234567890", out var type);
+
+        result.Should().BeFalse();
+        type.Should().Be(ControlCodeType.None);
+    }
+
+    [Fact]
+    public void IsControlCode_TrimEnabled_DoesNotAffectNormalBarcodes()
+    {
+        // Trim must not accidentally match a normal barcode that ends in zeros
+        bool result = _sut.IsControlCode("B9771234500000", out var type, trimTrailingZeros: true);
 
         result.Should().BeFalse();
         type.Should().Be(ControlCodeType.None);
