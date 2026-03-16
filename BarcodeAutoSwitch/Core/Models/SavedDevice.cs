@@ -45,6 +45,14 @@ public class SavedDevice
     public bool TrimTrailingZeros { get; set; } = false;
 
     /// <summary>
+    /// When true, the scanner prepends a single-char identifier before the barcode
+    /// (e.g. 'B' for EAN-13, 'M' for ISSN) — typical of serial/COM-port scanners.
+    /// When false (default for USB HID), the full raw input is the barcode value
+    /// and the type is inferred from the content.
+    /// </summary>
+    public bool HasIdentifierPrefix { get; set; } = true;
+
+    /// <summary>
     /// Set at runtime by the startup probe; not persisted to JSON.
     /// True = device was found and opened successfully at last startup.
     /// </summary>

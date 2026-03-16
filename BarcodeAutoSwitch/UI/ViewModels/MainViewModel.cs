@@ -109,7 +109,8 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
             var service = _serviceFactory(device.Type);
 
             bool trim        = device.TrimTrailingZeros;
-            var dataHandler  = (EventHandler<string>)((_, data) => HandleDataReceived(data, trim));
+            bool hasPrefix   = device.HasIdentifierPrefix;
+            var dataHandler  = (EventHandler<string>)((_, data) => HandleDataReceived(data, trim, hasPrefix));
             var errorHandler = (EventHandler<string>)HandleErrorReceived;
 
             bool opened = service.Open(resolvedId);
@@ -177,7 +178,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     // ── Barcode pipeline ──────────────────────────────────────────────────────
 
-    private void HandleDataReceived(string rawData, bool trimTrailingZeros)
+    private void HandleDataReceived(string rawData, bool trimTrailingZeros, bool hasIdentifierPrefix)
     {
         Console.WriteLine($"[INPUT] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
 
@@ -189,13 +190,13 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         else
         {
-            ProcessBarcode(rawData);
+            ProcessBarcode(rawData, hasIdentifierPrefix);
         }
     }
 
-    private void ProcessBarcode(string rawData)
+    private void ProcessBarcode(string rawData, bool hasIdentifierPrefix)
     {
-        var reading = _parser.Parse(rawData);
+        var reading = _parser.Parse(rawData, hasIdentifierPrefix);
         Console.WriteLine($"[BARCODE] Tipo={reading.BarcodeType} | ID='{reading.CodeIdentifier}' | Codice='{reading.CodeValue}'");
 
         bool sendToKeyboard = false;

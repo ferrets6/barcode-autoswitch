@@ -44,8 +44,9 @@ public partial class AddDeviceWindow : Window
                 Type               = sel.Type,
                 HardwareId         = sel.HardwareId,
                 DisplayName        = sel.DisplayName,
-                TrimTrailingZeros  = _viewModel.TrimTrailingZeros,
-                IsAvailable        = true
+                TrimTrailingZeros    = _viewModel.TrimTrailingZeros,
+                HasIdentifierPrefix = _viewModel.HasIdentifierPrefix,
+                IsAvailable         = true
             };
         }
     }

@@ -27,6 +27,12 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
     private const ushort HID_USAGE_PAGE_POS       = 0x8C;
     private const ushort HID_USAGE_POS_SCANNER    = 0x02;
     private const uint   RIDI_DEVICENAME          = 0x20000007;
+    private const uint   RIDI_DEVICEINFO          = 0x2000000B;
+    // RID_DEVICE_INFO offsets: cbSize=0, dwType=4, union starts at 8;
+    // RID_DEVICE_INFO_HID.usUsagePage at union+12=20, usUsage at union+14=22
+    private const int    RID_INFO_SIZE            = 32;
+    private const int    RID_INFO_USAGE_PAGE_OFF  = 20;
+    private const int    RID_INFO_USAGE_OFF       = 22;
     private const ushort HID_USAGE_PAGE_GENERIC   = 0x01;
     private const ushort HID_USAGE_GENERIC_KEYBOARD = 0x06;
     private const uint   RI_KEY_BREAK             = 1;   // key-up flag in RAWKEYBOARD.Flags
@@ -412,16 +418,61 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
             uint ret = GetRawInputDeviceList(buf, ref count, structSize);
             Console.WriteLine($"[USB-ENUM] ret={ret}, count={count}, structSize={structSize}, win32err={Marshal.GetLastWin32Error()}");
 
+            // Pass 1: collect VID/PID of all type=2 POS scanner devices (usage page 0x8C).
+            // Used in pass 2 to correctly label keyboard-emulating scanner interfaces.
+            var posScannerVidPids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (uint i = 0; i < count; i++)
+            {
+                var dev = Marshal.PtrToStructure<RAWINPUTDEVICELIST>(buf + (int)(i * structSize));
+                if (dev.dwType != RIM_TYPEHID) continue;
+                var (upPage, _) = GetHidUsage(dev.hDevice);
+                if (upPage != HID_USAGE_PAGE_POS) continue;
+                string vidPid = ExtractVidPid(GetDeviceName(dev.hDevice));
+                if (!string.IsNullOrEmpty(vidPid)) posScannerVidPids.Add(vidPid);
+            }
+
+            // Pass 2: build the list
             var result = new List<BarcodeDeviceInfo>();
             int idx    = 1;
             for (uint i = 0; i < count; i++)
             {
-                var dev = Marshal.PtrToStructure<RAWINPUTDEVICELIST>(buf + (int)(i * structSize));
-                string id = GetDeviceName(dev.hDevice);
-                Console.WriteLine($"[USB-ENUM]   [{i}] type={dev.dwType} hDevice=0x{dev.hDevice:X} path={id}");
-                if (dev.dwType != RIM_TYPEKEYBOARD && dev.dwType != RIM_TYPEHID) continue;
+                var    dev  = Marshal.PtrToStructure<RAWINPUTDEVICELIST>(buf + (int)(i * structSize));
+                string id   = GetDeviceName(dev.hDevice);
+
+                if (dev.dwType == RIM_TYPEHID)
+                {
+                    var (upPage, _) = GetHidUsage(dev.hDevice);
+                    if (upPage != HID_USAGE_PAGE_POS)
+                    {
+                        Console.WriteLine($"[USB-ENUM]   [{i}] SKIP  type=HID usagePage=0x{upPage:X2} path={id}");
+                        continue;
+                    }
+                }
+                else if (dev.dwType == RIM_TYPEKEYBOARD)
+                {
+                    // Exclude system keyboards that can never be a barcode scanner
+                    if (IsSystemKeyboard(id))
+                    {
+                        Console.WriteLine($"[USB-ENUM]   [{i}] SKIP  system keyboard path={id}");
+                        continue;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[USB-ENUM]   [{i}] SKIP  type={dev.dwType} path={id}");
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(id)) continue;
-                result.Add(new BarcodeDeviceInfo(id, BuildFriendlyName(id, idx++, dev.dwType), BarcodeDeviceType.UsbHid));
+
+                // A type=1 keyboard interface sharing a VID/PID with a POS scanner interface
+                // is the keyboard-emulation channel of that same scanner — label it accordingly
+                bool isKnownScanner = dev.dwType == RIM_TYPEKEYBOARD
+                                      && posScannerVidPids.Contains(ExtractVidPid(id));
+
+                string name = BuildFriendlyName(id, idx++, dev.dwType, isKnownScanner);
+                Console.WriteLine($"[USB-ENUM]   [{i}] ADD   type={dev.dwType} name='{name}' path={id}");
+                result.Add(new BarcodeDeviceInfo(id, name, BarcodeDeviceType.UsbHid));
             }
             return result;
         }
@@ -431,14 +482,62 @@ public sealed class RawInputBarcodeService : IBarcodeInputService
         }
     }
 
-    private static string BuildFriendlyName(string devicePath, int index, uint dwType)
+    private static string BuildFriendlyName(string devicePath, int index, uint dwType, bool isKnownScanner = false)
     {
         // Path looks like \\?\HID#VID_0483&PID_0011#6&...
         // Extract the hardware ID segment for a friendlier display name
         var    parts  = devicePath.Split('#');
         string hwPart = parts.Length >= 2 ? parts[1].Replace('&', ' ') : string.Empty;
-        string label  = dwType == RIM_TYPEHID ? "USB Scanner POS" : "USB Tastiera";
+        string label  = dwType == RIM_TYPEHID || isKnownScanner ? "USB Scanner" : "USB Tastiera";
         return string.IsNullOrEmpty(hwPart) ? $"{label} {index}" : $"{label} {index} ({hwPart})";
+    }
+
+    /// <summary>
+    /// Extracts "VID_xxxx&PID_yyyy" from a Raw Input device path.
+    /// Returns empty string if no VID/PID is found (e.g. ACPI or system devices).
+    /// </summary>
+    private static string ExtractVidPid(string devicePath)
+    {
+        // Path format: \\?\HID#VID_0C2E&PID_1001&MI_00#...
+        var parts = devicePath.Split('#');
+        if (parts.Length < 2) return string.Empty;
+        var tokens = parts[1].Split('&');
+        string? vid = Array.Find(tokens, t => t.StartsWith("VID_", StringComparison.OrdinalIgnoreCase));
+        string? pid = Array.Find(tokens, t => t.StartsWith("PID_", StringComparison.OrdinalIgnoreCase));
+        return vid != null && pid != null ? $"{vid}&{pid}" : string.Empty;
+    }
+
+    /// <summary>
+    /// Returns true for system-level keyboards that are never barcode scanners
+    /// (built-in laptop keyboard, on-screen keyboard, ACPI HID, etc.).
+    /// </summary>
+    private static bool IsSystemKeyboard(string devicePath)
+    {
+        if (string.IsNullOrEmpty(devicePath)) return true;
+        // ACPI devices (built-in keyboard), Microsoft virtual keyboard RID
+        return devicePath.Contains("ACPI#", StringComparison.OrdinalIgnoreCase)
+            || devicePath.Contains("Microsoft Keyboard", StringComparison.OrdinalIgnoreCase)
+            || devicePath.Contains("Microsoft Mouse", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Returns the HID usage page and usage for a device, or (0,0) on failure.</summary>
+    private static (ushort usagePage, ushort usage) GetHidUsage(IntPtr hDevice)
+    {
+        var infoBuf = Marshal.AllocHGlobal(RID_INFO_SIZE);
+        try
+        {
+            Marshal.WriteInt32(infoBuf, RID_INFO_SIZE); // cbSize
+            uint infoSize = (uint)RID_INFO_SIZE;
+            uint ret = GetRawInputDeviceInfo(hDevice, RIDI_DEVICEINFO, infoBuf, ref infoSize);
+            if (ret == uint.MaxValue) return (0, 0);
+            ushort usagePage = (ushort)Marshal.ReadInt16(infoBuf, RID_INFO_USAGE_PAGE_OFF);
+            ushort usage     = (ushort)Marshal.ReadInt16(infoBuf, RID_INFO_USAGE_OFF);
+            return (usagePage, usage);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(infoBuf);
+        }
     }
 
     private static string GetDeviceName(IntPtr hDevice)

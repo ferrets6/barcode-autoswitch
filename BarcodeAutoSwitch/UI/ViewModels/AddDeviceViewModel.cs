@@ -22,6 +22,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
     private PortTestResult        _testResult = PortTestResult.Idle;
     private bool                  _suppressSelectionChanged;
     private bool                  _trimTrailingZeros;
+    private bool                  _hasIdentifierPrefix;
 
     public ObservableCollection<BarcodeDeviceInfo> AvailableDevices { get; } = new();
 
@@ -33,6 +34,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
             if (_selectedDevice == value || _suppressSelectionChanged) return;
             _selectedDevice = value;
             OnPropertyChanged();
+            ApplyDeviceTypeDefaults();
             OpenSelectedDevice();
         }
     }
@@ -44,6 +46,17 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
         {
             if (_trimTrailingZeros == value) return;
             _trimTrailingZeros = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool HasIdentifierPrefix
+    {
+        get => _hasIdentifierPrefix;
+        set
+        {
+            if (_hasIdentifierPrefix == value) return;
+            _hasIdentifierPrefix = value;
             OnPropertyChanged();
         }
     }
@@ -91,10 +104,23 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
         // Pre-select first device without triggering test open
         _suppressSelectionChanged = true;
         _selectedDevice = AvailableDevices.FirstOrDefault();
+        ApplyDeviceTypeDefaults();
         OnPropertyChanged(nameof(SelectedDevice));
         _suppressSelectionChanged = false;
 
         OpenSelectedDevice();
+    }
+
+    /// <summary>
+    /// Sets per-device-type defaults when selection changes.
+    /// USB HID scanners: no identifier prefix, trim trailing zeros.
+    /// Serial scanners: has identifier prefix, no trailing-zero trim.
+    /// </summary>
+    private void ApplyDeviceTypeDefaults()
+    {
+        bool isUsb = _selectedDevice?.Type == BarcodeDeviceType.UsbHid;
+        HasIdentifierPrefix = !isUsb;
+        TrimTrailingZeros   = isUsb;
     }
 
     private void OpenSelectedDevice()
