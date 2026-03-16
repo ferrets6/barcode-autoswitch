@@ -21,8 +21,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
     private BarcodeDeviceInfo?    _selectedDevice;
     private PortTestResult        _testResult = PortTestResult.Idle;
     private bool                  _suppressSelectionChanged;
-    private bool                  _trimTrailingZeros;
-    private bool                  _hasIdentifierPrefix;
+    private bool                  _hasIdentifierPrefix = true;
 
     public ObservableCollection<BarcodeDeviceInfo> AvailableDevices { get; } = new();
 
@@ -34,19 +33,7 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
             if (_selectedDevice == value || _suppressSelectionChanged) return;
             _selectedDevice = value;
             OnPropertyChanged();
-            ApplyDeviceTypeDefaults();
             OpenSelectedDevice();
-        }
-    }
-
-    public bool TrimTrailingZeros
-    {
-        get => _trimTrailingZeros;
-        set
-        {
-            if (_trimTrailingZeros == value) return;
-            _trimTrailingZeros = value;
-            OnPropertyChanged();
         }
     }
 
@@ -104,23 +91,10 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
         // Pre-select first device without triggering test open
         _suppressSelectionChanged = true;
         _selectedDevice = AvailableDevices.FirstOrDefault();
-        ApplyDeviceTypeDefaults();
         OnPropertyChanged(nameof(SelectedDevice));
         _suppressSelectionChanged = false;
 
         OpenSelectedDevice();
-    }
-
-    /// <summary>
-    /// Sets per-device-type defaults when selection changes.
-    /// USB HID scanners: no identifier prefix, trim trailing zeros.
-    /// Serial scanners: has identifier prefix, no trailing-zero trim.
-    /// </summary>
-    private void ApplyDeviceTypeDefaults()
-    {
-        bool isUsb = _selectedDevice?.Type == BarcodeDeviceType.UsbHid;
-        HasIdentifierPrefix = !isUsb;
-        TrimTrailingZeros   = isUsb;
     }
 
     private void OpenSelectedDevice()
@@ -137,7 +111,9 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnDataReceived(object? sender, string rawData)
     {
-        if (!_parser.IsControlCode(rawData, out var controlType, _trimTrailingZeros)) return;
+        bool isControl = _parser.IsControlCode(rawData, out var controlType, _hasIdentifierPrefix);
+        Console.WriteLine($"[VALIDAZIONE] Letto: '{rawData}' (len={rawData.Length} hasIdentifierPrefix={_hasIdentifierPrefix}) → isControlCode={isControl}, tipo={controlType}");
+        if (!isControl) return;
 
         WpfApplication.Current.Dispatcher.Invoke(() =>
         {

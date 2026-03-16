@@ -108,9 +108,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
             string resolvedId = ResolveDeviceId(device);
             var service = _serviceFactory(device.Type);
 
-            bool trim        = device.TrimTrailingZeros;
-            bool hasPrefix   = device.HasIdentifierPrefix;
-            var dataHandler  = (EventHandler<string>)((_, data) => HandleDataReceived(data, trim, hasPrefix));
+            var dataHandler = (EventHandler<string>)((_, data) => HandleDataReceived(data, device.HasIdentifierPrefix));
             var errorHandler = (EventHandler<string>)HandleErrorReceived;
 
             bool opened = service.Open(resolvedId);
@@ -178,11 +176,11 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     // ── Barcode pipeline ──────────────────────────────────────────────────────
 
-    private void HandleDataReceived(string rawData, bool trimTrailingZeros, bool hasIdentifierPrefix)
+    private void HandleDataReceived(string rawData, bool hasIdentifierPrefix)
     {
         Console.WriteLine($"[INPUT] Dati ricevuti: '{rawData}' (lunghezza: {rawData.Length})");
 
-        if (_parser.IsControlCode(rawData, out var controlType, trimTrailingZeros))
+        if (_parser.IsControlCode(rawData, out var controlType, hasIdentifierPrefix))
         {
             Console.WriteLine($"[INPUT] Codice di controllo: {controlType}");
             if (controlType == ControlCodeType.EnableDisableToggle)

@@ -19,12 +19,12 @@ public static class ComPortEnumerator
     {
         var hwMap = BuildHardwareIdMap();
         return SerialPort.GetPortNames()
-            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .Select(p =>
+            .OrderBy(port => port, StringComparer.OrdinalIgnoreCase)
+            .Select(port =>
             {
-                bool found = hwMap.TryGetValue(p, out var hw);
-                string display = found ? $"{p}  ({hw})" : p;
-                return new ComPortInfo(p, found ? hw : null, display);
+                bool found = hwMap.TryGetValue(port, out var hw);
+                string display = found ? $"{port}  ({hw})" : port;
+                return new ComPortInfo(port, found ? hw : null, display);
             })
             .ToList();
     }

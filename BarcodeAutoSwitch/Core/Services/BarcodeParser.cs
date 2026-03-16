@@ -6,48 +6,45 @@ namespace BarcodeAutoSwitch.Core.Services;
 /// <summary>
 /// Parses raw barcode scanner input into structured <see cref="BarcodeReading"/> instances.
 ///
-/// Serial scanners prepend a single-char identifier (A/B/M/N) before the barcode.
-/// USB HID scanners send the raw barcode without any prefix; the type is inferred
-/// from the content when <paramref name="hasIdentifierPrefix"/> is false.
+/// Serial (COM-port) scanners prepend a single-char identifier (A/B/M/N) before the barcode.
 /// </summary>
 public class BarcodeParser : IBarcodeParser
 {
     // Special barcodes used to send control signals via the scanner
     private const string EnableDisableToggleCode = "111111111100000011111111";
-    private const string CheckPortCode           = "111111111122222200000000";
+    private const string CheckPortCode = "111111111122222211111111";
 
-    public BarcodeReading Parse(string rawInput, bool hasIdentifierPrefix = true)
+    public BarcodeReading Parse(string rawInput, bool hasIdentifierPrefix)
     {
         if (string.IsNullOrEmpty(rawInput))
             return new BarcodeReading(rawInput, rawInput, '\0', BarcodeType.Unknown);
-
         if (hasIdentifierPrefix)
         {
             if (rawInput.Length < 2)
                 return new BarcodeReading(rawInput, rawInput, '\0', BarcodeType.Unknown);
 
-            char   identifier = rawInput[0];
-            string code       = rawInput[1..];
-            BarcodeType type  = identifier switch
+            char identifier = rawInput[0];
+            string code = rawInput[1..];
+            BarcodeType type = identifier switch
             {
                 'A' => BarcodeType.EAN8,
                 'M' => BarcodeType.ISSN13Plus5,
                 'B' => BarcodeType.EAN13,
                 'N' => BarcodeType.Interleaved2of5,
-                _   => BarcodeType.Unknown
+                _ => BarcodeType.Unknown
             };
             return new BarcodeReading(rawInput, code, identifier, type);
         }
         else
         {
-            // USB HID: no prefix — infer type from content
-            string      code = rawInput;
+            // no prefix — infer type from content
+            string code = rawInput;
             BarcodeType type = InferBarcodeType(code);
             return new BarcodeReading(rawInput, code, '\0', type);
         }
     }
 
-    public bool IsControlCode(string rawInput, out ControlCodeType controlType, bool trimTrailingZeros = false)
+    public bool IsControlCode(string rawInput, out ControlCodeType controlType, bool hasIdentifierPrefix)
     {
         if (rawInput.Length < 1)
         {
@@ -55,25 +52,19 @@ public class BarcodeParser : IBarcodeParser
             return false;
         }
 
-        // Candidates: full input (USB HID — no prefix) and input minus first char (serial — has identifier prefix)
-        string[] candidates = rawInput.Length >= 2
-            ? [rawInput, rawInput[1..]]
-            : [rawInput];
+        // If there's an identifier prefix, the actual code starts from index 1
+        string codeToCheck = hasIdentifierPrefix && rawInput.Length >= 2 ? rawInput[1..] : rawInput;
 
-        foreach (string candidate in candidates)
+        if (codeToCheck == EnableDisableToggleCode)
         {
-            if (candidate == EnableDisableToggleCode)
-            {
-                controlType = ControlCodeType.EnableDisableToggle;
-                return true;
-            }
+            controlType = ControlCodeType.EnableDisableToggle;
+            return true;
+        }
 
-            string norm = trimTrailingZeros ? candidate.TrimEnd('0') : candidate;
-            if (norm == CheckPortCode.TrimEnd('0'))
-            {
-                controlType = ControlCodeType.CheckPort;
-                return true;
-            }
+        if (codeToCheck == CheckPortCode)
+        {
+            controlType = ControlCodeType.CheckPort;
+            return true;
         }
 
         controlType = ControlCodeType.None;
@@ -101,4 +92,5 @@ public class BarcodeParser : IBarcodeParser
             _  => BarcodeType.Unknown
         };
     }
+
 }

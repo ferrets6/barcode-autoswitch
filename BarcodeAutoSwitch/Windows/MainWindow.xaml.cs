@@ -67,10 +67,7 @@ public partial class MainWindow : Window
 
     private void OnRequestManageDevices(object? sender, EventArgs e)
     {
-        IBarcodeInputService ServiceFactory(BarcodeDeviceType t) =>
-            t == BarcodeDeviceType.UsbHid
-                ? new RawInputBarcodeService()
-                : (IBarcodeInputService)new SerialPortService();
+        IBarcodeInputService ServiceFactory(BarcodeDeviceType _) => new SerialPortService();
 
         var dialog = new DeviceManagementWindow(_viewModel, ServiceFactory) { Owner = this };
         dialog.ShowDialog();

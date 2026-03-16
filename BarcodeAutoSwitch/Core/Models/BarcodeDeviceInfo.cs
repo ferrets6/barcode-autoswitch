@@ -1,10 +1,10 @@
 namespace BarcodeAutoSwitch.Core.Models;
 
-public enum BarcodeDeviceType { SerialPort, UsbHid }
+public enum BarcodeDeviceType { SerialPort }
 
 /// <summary>Describes a physical barcode-scanner device available for selection.</summary>
 public record BarcodeDeviceInfo(
     string  DeviceId,
     string  DisplayName,
     BarcodeDeviceType Type,
-    string? HardwareId = null);  // populated for USB-backed COM ports
+    bool HasIdentifierPrefix = false);

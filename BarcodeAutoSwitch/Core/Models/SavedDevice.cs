@@ -22,7 +22,7 @@ namespace BarcodeAutoSwitch.Core.Models;
 /// </summary>
 public class SavedDevice
 {
-    /// <summary>COM port name (e.g. "COM3") or USB Raw Input device path.</summary>
+    /// <summary>COM port name (e.g. "COM3").</summary>
     public string DeviceId { get; set; } = string.Empty;
 
     public BarcodeDeviceType Type { get; set; } = BarcodeDeviceType.SerialPort;
@@ -36,18 +36,11 @@ public class SavedDevice
 
     /// <summary>Human-readable label shown in the UI.</summary>
     public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>
-    /// When true, trailing zeros are stripped from the raw barcode before
-    /// checking whether it matches the CheckPort activation code.
-    /// Only affects activation-code recognition — normal barcode parsing is unchanged.
-    /// </summary>
-    public bool TrimTrailingZeros { get; set; } = false;
-
+    
     /// <summary>
     /// When true, the scanner prepends a single-char identifier before the barcode
     /// (e.g. 'B' for EAN-13, 'M' for ISSN) — typical of serial/COM-port scanners.
-    /// When false (default for USB HID), the full raw input is the barcode value
+    /// When false, the full raw input is the barcode value
     /// and the type is inferred from the content.
     /// </summary>
     public bool HasIdentifierPrefix { get; set; } = true;

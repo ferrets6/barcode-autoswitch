@@ -1,7 +1,7 @@
 <Window x:Class="BarcodeAutoSwitch.Windows.AddDeviceWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Aggiungi dispositivo" Height="460" Width="420"
+        Title="Aggiungi dispositivo" Height="400" Width="420"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
 
     <DockPanel Margin="12">
@@ -36,11 +36,7 @@
                       Height="26" Margin="0,0,0,2">
                 <ComboBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Type}" Foreground="Gray"
-                                       FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                        </StackPanel>
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -53,10 +49,7 @@
             <!-- Per-device options -->
             <StackPanel Grid.Row="3" Margin="2,0,0,12">
                 <CheckBox IsChecked="{Binding HasIdentifierPrefix}"
-                          Content="Prefisso identificatore (lettori seriali COM)"
-                          Margin="0,0,0,4"/>
-                <CheckBox IsChecked="{Binding TrimTrailingZeros}"
-                          Content="Taglia zeri in coda (solo codice di attivazione)"/>
+                          Content="Prefisso identificatore (il codice letto inizia con una lettera)"/>
             </StackPanel>
 
             <Separator Grid.Row="4" Margin="0,0,0,10"/>

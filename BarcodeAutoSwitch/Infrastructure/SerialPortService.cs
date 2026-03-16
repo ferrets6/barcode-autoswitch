@@ -15,6 +15,7 @@ public class SerialPortService : IBarcodeInputService
 
     public bool   IsOpen   => _port?.IsOpen   ?? false;
     public string DeviceId => _port?.PortName ?? string.Empty;
+    private string _readBuffer = string.Empty;
 
     public event EventHandler<string> DataReceived  = delegate { };
     public event EventHandler<string> ErrorReceived = delegate { };
@@ -26,18 +27,20 @@ public class SerialPortService : IBarcodeInputService
         {
             _port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
             {
-                Handshake = Handshake.RequestToSend,
-                NewLine   = NewLine
+                Handshake    = Handshake.None,
+                ReadTimeout  = SerialPort.InfiniteTimeout,
+                WriteTimeout = 500,
+                NewLine      = NewLine
             };
             _port.DataReceived  += OnDataReceived;
             _port.ErrorReceived += OnErrorReceived;
             _port.Open();
-            Console.WriteLine($"Porta seriale aperta: {portName}");
+            Console.WriteLine($"[COM] Porta aperta: {portName} | baud=9600 handshake=None newline=CRLF");
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Errore apertura porta {portName}: {ex.Message}");
+            Console.WriteLine($"[COM] Errore apertura porta {portName}: {ex.Message}");
             _port = null;
             return false;
         }
@@ -68,13 +71,54 @@ public class SerialPortService : IBarcodeInputService
         if (_port is null || !_port.IsOpen) return;
         try
         {
-            string data = _port.ReadLine();
-            DataReceived(this, data);
+            // ReadExisting reads whatever is currently in the buffer.
+            // We accumulate chars into _readBuffer and fire DataReceived
+            // on each line ending (\r, \n or \r\n) so we're not tied to
+            // a specific NewLine setting.
+            string raw = _port.ReadExisting();
+            Console.WriteLine($"[COM] Byte ricevuti ({raw.Length} char): {FormatRaw(raw)}");
+
+            _readBuffer += raw;
+
+            int idx;
+            while ((idx = IndexOfLineEnd(_readBuffer)) >= 0)
+            {
+                string line = _readBuffer[..idx].TrimEnd('\r', '\n');
+                // skip past the line-ending character(s)
+                int skip = idx + 1;
+                if (skip < _readBuffer.Length && _readBuffer[idx] == '\r' && _readBuffer[skip] == '\n')
+                    skip++;
+                _readBuffer = _readBuffer[skip..];
+
+                if (line.Length == 0) continue;
+                Console.WriteLine($"[COM] Linea completa: '{line}'");
+                DataReceived(this, line);
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Errore lettura porta: {ex.Message}");
+            Console.WriteLine($"[COM] Errore lettura porta: {ex.Message}");
         }
+    }
+
+    private static int IndexOfLineEnd(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+            if (s[i] == '\r' || s[i] == '\n') return i;
+        return -1;
+    }
+
+    private static string FormatRaw(string s)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (char c in s)
+        {
+            if (c == '\r') sb.Append("\\r");
+            else if (c == '\n') sb.Append("\\n");
+            else if (c < 32) sb.Append($"\\x{(int)c:X2}");
+            else sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     private void OnErrorReceived(object sender, SerialErrorReceivedEventArgs e)

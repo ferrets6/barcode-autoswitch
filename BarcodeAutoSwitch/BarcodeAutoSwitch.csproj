@@ -48,8 +48,6 @@
 
   <ItemGroup>
     <Resource Include="Resources\checkPortBarcode.gif" />
-    <Resource Include="Resources\portOk.gif"           />
-    <Resource Include="Resources\portKo.gif"           />
     <Resource Include="Resources\icon.ico"             />
   </ItemGroup>
 
