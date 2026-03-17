@@ -6,6 +6,7 @@ public enum BarcodeType
     ISSN13Plus5,     // M prefix (newspapers, magazines)
     EAN13,           // B prefix
     Interleaved2of5, // N prefix (scratch cards)
+    CodiceFiscale,   // Italian fiscal code (16 alphanumeric chars)
     Unknown
 }
 

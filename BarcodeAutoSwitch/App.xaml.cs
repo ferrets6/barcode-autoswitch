@@ -42,6 +42,7 @@ public partial class App : WpfApp
         var barcodeParser  = new BarcodeParser();
         var barcodeRouter  = new BarcodeRouter(new IRoutingStrategy[]
         {
+            new CodiceFiscaleRoutingStrategy(),
             new NewspaperRoutingStrategy(),
             new DefaultRoutingStrategy()
         });

@@ -221,6 +221,15 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
                 case BarcodeDestination.NegozioFacile:
                     sendToKeyboard = _windowSwitcher.BringToFront(_settings.NegozioFacileProcessName);
                     break;
+
+                case BarcodeDestination.DoNotSwitch:
+                    sendToKeyboard = true;
+                    Console.WriteLine("[ROUTING] Codice Fiscale rilevato — nessuno switch, focus invariato.");
+                    break;
+
+                case BarcodeDestination.Ignore:
+                    Console.WriteLine($"[ROUTING] Il codice {reading.CodeValue} è ignorato.");
+                    break;
             }
         }
         else

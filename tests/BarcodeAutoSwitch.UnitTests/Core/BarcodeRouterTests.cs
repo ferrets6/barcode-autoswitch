@@ -9,6 +9,7 @@ public class BarcodeRouterTests
 {
     private readonly BarcodeRouter _sut = new(new IRoutingStrategy[]
     {
+        new CodiceFiscaleRoutingStrategy(),
         new NewspaperRoutingStrategy(),
         new DefaultRoutingStrategy()
     });
@@ -37,6 +38,16 @@ public class BarcodeRouterTests
     {
         var reading = new BarcodeReading(id + code, code, id, type);
         _sut.Route(reading).Should().Be(BarcodeDestination.NegozioFacile);
+    }
+
+    // ── Codice Fiscale routing ────────────────────────────────────────────────
+
+    [Fact]
+    public void Route_CodiceFiscale_ReturnsIgnore()
+    {
+        const string cf = "RSSMRA80A01H501U";
+        var reading = new BarcodeReading("A" + cf, cf, 'A', BarcodeType.CodiceFiscale);
+        _sut.Route(reading).Should().Be(BarcodeDestination.DoNotSwitch);
     }
 
     // ── Edge cases ────────────────────────────────────────────────────────────

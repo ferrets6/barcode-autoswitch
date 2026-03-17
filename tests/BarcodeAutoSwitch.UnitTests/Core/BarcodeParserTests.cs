@@ -122,6 +122,43 @@ public class BarcodeParserTests
         type.Should().Be(ControlCodeType.None);
     }
 
+    // ── Codice Fiscale detection ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("RSSMRA80A01H501U")]   // typical CF
+    [InlineData("VRNGNN75T04F205T")]   // another valid-pattern CF
+    public void Parse_WithoutPrefix_CodiceFiscale_ReturnsCodiceFiscaleType(string cf)
+    {
+        var result = _sut.Parse(cf, hasIdentifierPrefix: false);
+
+        result.BarcodeType.Should().Be(BarcodeType.CodiceFiscale);
+        result.CodeValue.Should().Be(cf);
+    }
+
+    [Theory]
+    [InlineData("ARSSMRA80A01H501U", "RSSMRA80A01H501U", 'A')]  // identifier 'A' + CF
+    [InlineData("MRSSMRA80A01H501U", "RSSMRA80A01H501U", 'M')]  // identifier 'M' + CF
+    public void Parse_WithPrefix_CodiceFiscale_ReturnsCodiceFiscaleType(
+        string raw, string expectedCode, char expectedId)
+    {
+        var result = _sut.Parse(raw, hasIdentifierPrefix: true);
+
+        result.BarcodeType.Should().Be(BarcodeType.CodiceFiscale);
+        result.CodeValue.Should().Be(expectedCode);
+        result.CodeIdentifier.Should().Be(expectedId);
+    }
+
+    [Theory]
+    [InlineData("RSSMRA80A01H501")]    // 15 chars — too short
+    [InlineData("RSSMRA80A01H501UX")]  // 17 chars — too long
+    [InlineData("12345678901234567")]  // digits only — not a CF
+    public void Parse_NotACF_DoesNotReturnCodiceFiscaleType(string raw)
+    {
+        var result = _sut.Parse(raw, hasIdentifierPrefix: false);
+
+        result.BarcodeType.Should().NotBe(BarcodeType.CodiceFiscale);
+    }
+
     // ── IsControlCode (edge cases) ────────────────────────────────────────────
 
     [Theory]

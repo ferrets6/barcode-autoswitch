@@ -14,6 +14,17 @@ public class NewspaperRoutingStrategy : IRoutingStrategy
     public BarcodeDestination GetDestination(BarcodeReading reading) => BarcodeDestination.AdriaticaPress;
 }
 
+/// <summary>
+/// Codice Fiscale: never switch windows. The barcode is left where the focus already is.
+/// </summary>
+public class CodiceFiscaleRoutingStrategy : IRoutingStrategy
+{
+    public bool CanHandle(BarcodeReading reading) =>
+        reading.BarcodeType == BarcodeType.CodiceFiscale;
+
+    public BarcodeDestination GetDestination(BarcodeReading reading) => BarcodeDestination.DoNotSwitch;
+}
+
 /// <summary>Catch-all: everything else goes to NegozioFacile.</summary>
 public class DefaultRoutingStrategy : IRoutingStrategy
 {
