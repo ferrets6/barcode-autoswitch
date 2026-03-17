@@ -23,11 +23,15 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly IWindowSwitcher  _windowSwitcher;
     private readonly IKeyboardSender  _keyboard;
     private readonly IAppSettings     _settings;
+    private readonly IDialogService   _dialogService;
     private readonly Func<BarcodeDeviceType, IBarcodeInputService> _serviceFactory;
 
     // All currently-open input services (one per active configured device)
     private record ActiveDevice(IBarcodeInputService Service, EventHandler<string> DataHandler, EventHandler<string> ErrorHandler);
     private readonly List<ActiveDevice> _activeServices = new();
+
+    // Cancels the "process not found" dialog when the next scan arrives
+    private CancellationTokenSource? _processNotFoundCts;
 
     private bool _isAutoSwitchEnabled = true;
     private bool _isBrowserVisible    = true;
@@ -79,6 +83,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         IWindowSwitcher                              windowSwitcher,
         IKeyboardSender                              keyboard,
         IAppSettings                                 settings,
+        IDialogService                               dialogService,
         Func<BarcodeDeviceType, IBarcodeInputService> serviceFactory)
     {
         _parser         = parser;
@@ -86,6 +91,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
         _windowSwitcher = windowSwitcher;
         _keyboard       = keyboard;
         _settings       = settings;
+        _dialogService  = dialogService;
         _serviceFactory = serviceFactory;
 
         ToggleAutoSwitchCommand = new RelayCommand(ToggleAutoSwitch);
@@ -194,6 +200,10 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void ProcessBarcode(string rawData, bool hasIdentifierPrefix)
     {
+        // Close any open "process not found" dialog before processing the new scan
+        _processNotFoundCts?.Cancel();
+        _processNotFoundCts = null;
+
         var reading = _parser.Parse(rawData, hasIdentifierPrefix);
         Console.WriteLine($"[BARCODE] Tipo={reading.BarcodeType} | ID='{reading.CodeIdentifier}' | Codice='{reading.CodeValue}'");
 
@@ -220,6 +230,13 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
                 case BarcodeDestination.NegozioFacile:
                     sendToKeyboard = _windowSwitcher.BringToFront(_settings.NegozioFacileProcessName);
+                    if (!sendToKeyboard)
+                    {
+                        _processNotFoundCts = new CancellationTokenSource();
+                        _dialogService.ShowProcessNotFound(
+                            _settings.NegozioFacileProcessName,
+                            _processNotFoundCts.Token);
+                    }
                     break;
 
                 case BarcodeDestination.DoNotSwitch:
@@ -239,7 +256,7 @@ public class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (sendToKeyboard)
         {
-            Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}' a NegozioFacile");
+            Console.WriteLine($"[KEYBOARD] Invio codice '{reading.CodeValue}' a: '{WindowSwitcher.GetForegroundTitle()}'");
             _keyboard.SendText(reading.CodeValue);
             _keyboard.SendKey("{ENTER}");
         }

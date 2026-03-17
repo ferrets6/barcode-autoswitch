@@ -2,6 +2,7 @@ using BarcodeAutoSwitch.Core.Interfaces;
 using BarcodeAutoSwitch.Core.Models;
 using BarcodeAutoSwitch.Core.Services;
 using BarcodeAutoSwitch.Infrastructure;
+using BarcodeAutoSwitch.UI.Services;
 using BarcodeAutoSwitch.UI.ViewModels;
 using BarcodeAutoSwitch.Windows;
 using CefSharp;
@@ -52,9 +53,10 @@ public partial class App : WpfApp
 
         IBarcodeInputService ServiceFactory(BarcodeDeviceType t) => CreateInputService(t);
 
-        var viewModel  = new MainViewModel(barcodeParser, barcodeRouter,
-                                           windowSwitcher, keyboardSender, appSettings,
-                                           ServiceFactory);
+        var dialogService = new WpfDialogService();
+        var viewModel     = new MainViewModel(barcodeParser, barcodeRouter,
+                                              windowSwitcher, keyboardSender, appSettings,
+                                              dialogService, ServiceFactory);
         var mainWindow = new MainWindow(viewModel);
         mainWindow.Show();
     }

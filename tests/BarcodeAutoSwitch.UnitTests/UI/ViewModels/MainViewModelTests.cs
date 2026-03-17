@@ -13,6 +13,7 @@ public class MainViewModelTests : IDisposable
     private readonly Mock<IWindowSwitcher>      _windowSwitcher = new();
     private readonly Mock<IKeyboardSender>      _keyboard       = new();
     private readonly Mock<IAppSettings>         _settings       = new();
+    private readonly Mock<IDialogService>       _dialogService  = new();
     private readonly BarcodeParser              _parser         = new();
     private readonly BarcodeRouter              _router         = new(new IRoutingStrategy[]
     {
@@ -43,7 +44,7 @@ public class MainViewModelTests : IDisposable
 
         _sut = new MainViewModel(_parser, _router,
                                  _windowSwitcher.Object, _keyboard.Object, _settings.Object,
-                                 _ => _service.Object);
+                                 _dialogService.Object, _ => _service.Object);
     }
 
     // ── Initial state ─────────────────────────────────────────────────────────
@@ -121,7 +122,7 @@ public class MainViewModelTests : IDisposable
 
         var vm = new MainViewModel(_parser, _router,
                                    _windowSwitcher.Object, _keyboard.Object, _settings.Object,
-                                   _ => failService.Object);
+                                   _dialogService.Object, _ => failService.Object);
 
         vm.IsBrowserVisible.Should().BeFalse();
         vm.Dispose();
@@ -134,7 +135,7 @@ public class MainViewModelTests : IDisposable
 
         var vm = new MainViewModel(_parser, _router,
                                    _windowSwitcher.Object, _keyboard.Object, _settings.Object,
-                                   _ => _service.Object);
+                                   _dialogService.Object, _ => _service.Object);
 
         vm.IsBrowserVisible.Should().BeTrue();
         vm.Dispose();
