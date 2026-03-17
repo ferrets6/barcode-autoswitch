@@ -1,12 +1,17 @@
 # BarcodeAutoSwitch
 
-WPF application (.NET 8, x64) that listens on one or more barcode scanners connected via COM port and automatically routes each barcode to the correct application window.
+WPF application (.NET 8, x64) that listens on one or more barcode scanners connected via **COM port** and automatically routes each barcode to the correct application window.
 
-- **Newspaper barcodes** (ISSN prefix `977`, types `M`/`B`) → Adriatica Press (embedded Chromium browser, sends Alt+T + barcode code)
-- **All other barcodes** → NegozioFacile (external process, types barcode via keyboard emulation)
-- **Control barcodes** → toggle auto-switch on/off, or test a device
+| Barcode | Destination | Behaviour |
+|---|---|---|
+| Newspaper (ISSN prefix `977`, types `M`/`B`) | Adriatica Press | Embedded Chromium browser — sends Alt+T then the barcode code |
+| Codice Fiscale (16-char `[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]`) | *(no switch)* | Typed at the currently focused window without switching |
+| All other barcodes | NegozioFacile | External process — types barcode via keyboard emulation |
+| Control barcodes | — | Toggle auto-switch on/off, or test a device |
 
 Multiple devices can be active simultaneously; barcodes from any device feed the same pipeline.
+
+If the NegozioFacile process is not running when a barcode arrives, a popup is shown ("Processo non trovato") with an audio alert (`beepKO.mp3`). The popup closes automatically on the next scan, or manually with **Chiudi** / window X.
 
 ## Requirements
 
@@ -114,6 +119,7 @@ The barcode type is inferred from length and content:
 | 13 digits (other) | EAN-13 |
 | 18 digits starting with `977` | ISSN 13+5 with add-on |
 | 14 digits | Interleaved 2 of 5 |
+| `[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]` (16 chars) | Codice Fiscale |
 
 ## Tests
 
@@ -140,9 +146,10 @@ BarcodeAutoSwitch/
 │   ├── Behaviours/      # WPF attached behaviours
 │   ├── Converters/      # Value converters
 │   ├── Commands/        # RelayCommand, RelayCommand<T>
+│   ├── Services/        # WpfDialogService (IDialogService)
 │   └── ViewModels/      # MainViewModel, AddDeviceViewModel, DeviceManagementViewModel
 └── Windows/             # MainWindow, DeviceManagementWindow,
-                         # AddDeviceWindow, DebugLogWindow
+                         # AddDeviceWindow, DebugLogWindow, ProcessNotFoundDialog
 tests/
 ├── BarcodeAutoSwitch.UnitTests/        # xUnit + Moq + FluentAssertions
 └── BarcodeAutoSwitch.IntegrationTests/

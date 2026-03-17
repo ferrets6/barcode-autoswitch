@@ -1,23 +1,47 @@
 <Window x:Class="BarcodeAutoSwitch.Windows.ProcessNotFoundDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Processo non trovato" Height="170" Width="400"
+        Title="Errore di Sistema" SizeToContent="WidthAndHeight"
+        MaxWidth="500" MinHeight="150"
         ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False" Background="#FBFBFB">
 
-    <DockPanel Margin="16">
+    <Grid Margin="20,20,40,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" /> 
+            <RowDefinition Height="Auto" /> 
+        </Grid.RowDefinitions>
 
-        <Button DockPanel.Dock="Bottom"
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Viewbox Width="40" Height="40" Grid.Column="0" VerticalAlignment="Top" Margin="0,0,15,0">
+                <Canvas Width="24" Height="24">
+                    <Path Fill="#D32F2F" Data="M12,2C6.47,2 2,6.47 2,12s4.47,10 10,10 10,-4.47 10,-10S17.53,2 12,2zm5,13.59L15.59,17 12,13.41 8.41,17 7,15.59 10.59,12 7,8.41 8.41,7 12,10.59 15.59,7 17,8.41 13.41,12 17,15.59z" />
+                </Canvas>
+            </Viewbox>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                <TextBlock Text="Attenzione!" FontWeight="Bold" FontSize="14" 
+                           Foreground="#D32F2F" Margin="0,0,0,5"/>
+                <TextBlock x:Name="MessageText"
+                           TextWrapping="Wrap"
+                           FontSize="13" 
+                           Foreground="#333333"
+                           Text="Messaggio di esempio molto lungo per testare che il testo vada a capo correttamente senza essere tagliato fuori dalla finestra." />
+            </StackPanel>
+        </Grid>
+
+        <Button Grid.Row="1" 
                 Content="Chiudi"
-                Width="90" HorizontalAlignment="Right"
-                Margin="0,12,0,0"
-                Click="CloseButton_Click" IsDefault="True" />
-
-        <TextBlock x:Name="MessageText"
-                   TextWrapping="Wrap"
-                   VerticalAlignment="Center"
-                   FontSize="13" />
-
-    </DockPanel>
-
+                Padding="10,5"
+                HorizontalAlignment="Right"
+                Margin="0,20,5,0" 
+                Click="CloseButton_Click" 
+                IsDefault="True"
+                Cursor="Hand"/>
+    </Grid>
 </Window>

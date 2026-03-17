@@ -11,6 +11,7 @@ public sealed class WpfDialogService : IDialogService
         WpfApplication.Current.Dispatcher.Invoke(() =>
         {
             var dialog = new ProcessNotFoundDialog(processName, autoCloseToken);
+            dialog.Owner = App.Current.MainWindow;
             dialog.Show();
         });
     }

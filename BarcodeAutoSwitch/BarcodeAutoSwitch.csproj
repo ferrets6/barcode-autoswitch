@@ -51,4 +51,10 @@
     <Resource Include="Resources\icon.ico"             />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Resources\beepKO.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
