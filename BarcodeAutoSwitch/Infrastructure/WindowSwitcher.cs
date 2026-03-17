@@ -56,7 +56,7 @@ public class WindowSwitcher : IWindowSwitcher
         return true;
     }
 
-    private static string GetForegroundTitle()
+    public static string GetForegroundTitle()
     {
         IntPtr hWnd = GetForegroundWindow();
         if (hWnd == IntPtr.Zero) return "(nessuna)";

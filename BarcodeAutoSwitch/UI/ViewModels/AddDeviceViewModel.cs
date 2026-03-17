@@ -100,7 +100,6 @@ public class AddDeviceViewModel : INotifyPropertyChanged, IDisposable
     private void OpenSelectedDevice()
     {
         TestResult          = PortTestResult.Idle;
-        HasIdentifierPrefix = true;
         CloseTestService();
 
         if (_selectedDevice == null) return;
